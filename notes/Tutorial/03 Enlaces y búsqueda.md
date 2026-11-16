@@ -29,6 +29,6 @@ Usa `↑` y `↓` para moverte por los resultados y `Enter` para abrir uno.
 
 ## Enlaces externos
 
-Un enlace web (`https://…`) se abre en tu navegador. Para incrustar una página o un vídeo, usa el bloque *Embed or video link* (ver [[04 Columnas y medios]]).
+Un enlace web (`https://…`) se abre en tu navegador. Para incrustar una página o un vídeo, usa el bloque *Incrustación o enlace de vídeo* (ver [[04 Columnas y medios]]).
 
 Siguiente: [[04 Columnas y medios]].

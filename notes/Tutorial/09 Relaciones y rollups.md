@@ -10,11 +10,11 @@ cover_zoom: 1.3
 
 Una base puede enlazar sus filas con filas de **otra base**, y resumir lo enlazado.
 
-## Relation
+## Relación
 
-En [[Tutorial/Libros]], la propiedad **Citas** es una *Relation* hacia la base [[Tutorial/Citas]]:
+En [[Tutorial/Libros]], la propiedad **Citas** es una *Relación* hacia la base [[Tutorial/Citas]]:
 
-1. Crea la propiedad con tipo *Relation*.
+1. Crea la propiedad con tipo *Relación*.
 2. En su configuración, elige la base relacionada.
 3. Haz clic en la celda para elegir las páginas. Cada elección aparece como un enlace que abre esa página.
 

@@ -1,7 +1,7 @@
 {
   "name": "vault",
   "productName": "Vault",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Notas en Markdown con editor tipo Notion",
   "author": "Vault",
   "private": true,
@@ -32,6 +32,16 @@
       "app/**/*",
       "!app/test/**",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "notes",
+        "to": "notes",
+        "filter": [
+          "**/*",
+          "!.trash/**"
+        ]
+      }
     ],
     "win": {
       "target": [

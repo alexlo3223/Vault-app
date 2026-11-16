@@ -20,7 +20,7 @@ const el = (tag, className = '', text = '') => {
 const baseName = (p) => p.split('/').pop().replace(/\.md$/i, '');
 const folderOf = (p) => p.slice(0, p.lastIndexOf('/') + 1);
 const validName = (n) => !!n && !n.startsWith('.') && !/[\\/:*?"<>|#^[\]]/.test(n);
-const BAD_NAME = 'Page names can’t be empty, start with “.”, or contain \\ / : * ? " < > | # ^ [ ]';
+const BAD_NAME = 'Los nombres de página no pueden estar vacíos, empezar por “.” ni contener \\ / : * ? " < > | # ^ [ ]';
 const safeDecode = (s) => {
   try {
     return decodeURIComponent(s);
@@ -70,7 +70,7 @@ async function api(method, url, body) {
     headers: body ? { 'content-type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   }).catch(() => {
-    throw new Error('Vault server is not running: start Vault.exe (or npm start) and reload');
+    throw new Error('El servidor de Vault no está en marcha: abre Vault.exe (o npm start) y recarga');
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -105,18 +105,18 @@ async function loadGraph() {
   state.byPath = new Map(state.graph.nodes.map((n) => [n.path, n]));
   const { nodes, edges, tags } = state.graph;
   const links = edges.reduce((s, e) => s + e.count, 0);
-  $('#vault-stats').textContent = `${nodes.length} note${nodes.length === 1 ? '' : 's'} · ${links} link${links === 1 ? '' : 's'}`;
+  $('#vault-stats').textContent = `${nodes.length} nota${nodes.length === 1 ? '' : 's'} · ${links} enlace${links === 1 ? '' : 's'}`;
   const box = $('#tags');
   box.replaceChildren(
     ...tags.slice(0, 24).map(({ tag, count }) => {
       const b = el('button', 'tag-chip', `#${tag}`);
       b.type = 'button';
-      b.title = `${count} note${count === 1 ? '' : 's'}`;
+      b.title = `${count} nota${count === 1 ? '' : 's'}`;
       b.addEventListener('click', () => openSwitcher(`tag:${tag}`));
       return b;
     }),
   );
-  if (!tags.length) box.append(el('span', 'tree-empty', 'No tags yet'));
+  if (!tags.length) box.append(el('span', 'tree-empty', 'Aún no hay etiquetas'));
   if (state.view === 'overview') renderOverview(views.overview, state.graph, viewHandlers);
   else if (state.view === 'graph') renderGraphView(views.graph, state.graph, viewHandlers);
 }
@@ -158,7 +158,7 @@ function showOverview(notice = '') {
 function showGraph() {
   showView('graph');
   setNotice();
-  document.title = 'Graph view · Vault';
+  document.title = 'Grafo · Vault';
   renderGraphView(views.graph, state.graph, viewHandlers);
 }
 
@@ -172,7 +172,7 @@ function renderProps(frontmatter) {
   box.hidden = !frontmatter || (rows && !rows.length);
   if (box.hidden) return;
   const head = el('div', 'props-head');
-  head.append(el('span', 'eyebrow mono', 'Properties'), el('span', 'count mono', rows ? `${rows.length} key${rows.length === 1 ? '' : 's'}` : 'raw'));
+  head.append(el('span', 'eyebrow mono', 'Propiedades'), el('span', 'count mono', rows ? `${rows.length} clave${rows.length === 1 ? '' : 's'}` : 'sin analizar'));
   box.append(head);
   if (!rows) return void box.append(el('pre', 'props-raw', frontmatter.replace(/^---\n/, '').replace(/\n?---\n?$/, '')));
   const grid = el('div', 'props-grid');
@@ -197,7 +197,7 @@ function renderProps(frontmatter) {
 }
 
 // A page inside a database's folder is one of its rows: its header shows every property of the database, typed and
-// editable, with "+ Add a property" (like a Notion database page). Values are written into this page's frontmatter.
+// editable, with "+ Añadir propiedad" (like a Notion database page). Values are written into this page's frontmatter.
 function renderRowProps() {
   const box = $('#props');
   const { cfg, raw, related, page } = state.rowDb;
@@ -234,18 +234,18 @@ function renderRowProps() {
   box.replaceChildren();
   box.hidden = false;
   const head = el('div', 'props-head');
-  const dbLink = el('a', 'count mono', `Database · ${baseName(page)}`);
+  const dbLink = el('a', 'count mono', `Base de datos · ${baseName(page)}`);
   dbLink.href = `#/${enc(page)}`;
-  head.append(el('span', 'eyebrow mono', 'Properties'), dbLink);
+  head.append(el('span', 'eyebrow mono', 'Propiedades'), dbLink);
   const grid = el('div', 'props-grid row-props');
   for (const p of props) {
     const key = el('button', 'prop-key prop-key-btn');
     key.type = 'button';
-    key.title = `${p.name} · click for options`;
+    key.title = `${p.name} · clic para ver opciones`;
     key.append(typeIcon(p.type, 13), el('span', '', p.name));
     key.addEventListener('click', () => propertyMenu(key, p, handlers(p)));
     const val = el('div', `prop-val prop-cell${isStored(p.type) ? ' editable' : ''}`);
-    val.append(valueEl(p, row.values[p.name], { error: row.errors[p.name], open: openByName, empty: 'Empty' }));
+    val.append(valueEl(p, row.values[p.name], { error: row.errors[p.name], open: openByName, empty: 'Vacío' }));
     if (isStored(p.type)) {
       val.tabIndex = 0;
       val.dataset.prop = p.name;
@@ -263,7 +263,7 @@ function renderRowProps() {
     }
     grid.append(key, val);
   }
-  const add = el('button', 'prop-add', '+ Add a property');
+  const add = el('button', 'prop-add', '+ Añadir propiedad');
   add.type = 'button';
   add.addEventListener('click', () =>
     addPropertyMenu(add, { names: props.map((p) => p.name), create: (name, type) => owner.edit((c) => c.props.push(newProp(name, type))) }),
@@ -315,7 +315,7 @@ async function loadRowDb(path) {
 async function updateSchema(page, fn) {
   const data = await api('GET', `/api/page?path=${enc(page)}`);
   const text = extractDatabase(data.content);
-  if (text === null) throw new Error('That page has no database');
+  if (text === null) throw new Error('Esa página no tiene base de datos');
   const cfg = parseDb(text);
   fn(cfg);
   await api('PUT', '/api/page', { path: page, content: replaceDatabase(data.content, serializeDb(cfg)), baseMtime: data.mtime });
@@ -326,7 +326,7 @@ async function openByName(name) {
   try {
     const { path } = await api('GET', `/api/resolve?link=${enc(name)}&from=${enc(state.page?.path ?? '')}`);
     if (path) go(path);
-    else setStatus(`There is no page called “${name}”`);
+    else setStatus(`No hay ninguna página llamada “${name}”`);
   } catch (e) {
     setStatus(e.message);
   }
@@ -337,7 +337,7 @@ function updateMeta() {
   if (!p) return;
   const text = flatBlocks().map((b) => (b.type === 'table' ? b.rows.flat().join(' ') : b.type === 'image' ? '' : b.text));
   const words = (text.join(' ').match(/\S+/g) ?? []).length;
-  $('#meta').textContent = `${words} word${words === 1 ? '' : 's'} · ${Math.max(1, Math.round(words / 200))} min read · ${p.dirty ? 'editing' : `updated ${ago(p.mtime)}`}`;
+  $('#meta').textContent = `${words} palabra${words === 1 ? '' : 's'} · ${Math.max(1, Math.round(words / 200))} min de lectura · ${p.dirty ? 'editando' : `actualizada ${ago(p.mtime)}`}`;
 }
 
 function allPages() {
@@ -360,7 +360,7 @@ function linktext(path, pages) {
 function renderTree() {
   const ul = $('#tree');
   ul.replaceChildren(...state.tree.map((n) => treeNode(n, 0)));
-  if (!state.tree.length) ul.append(el('li', 'tree-empty', 'No pages yet'));
+  if (!state.tree.length) ul.append(el('li', 'tree-empty', 'Aún no hay páginas'));
 }
 
 function treeNode(node, depth) {
@@ -374,7 +374,7 @@ function treeNode(node, depth) {
   const chev = el('button', 'chev', node.children.length ? (open ? '▾' : '▸') : '');
   chev.type = 'button';
   if (node.children.length) {
-    chev.setAttribute('aria-label', `${open ? 'Collapse' : 'Expand'} ${node.name}`);
+    chev.setAttribute('aria-label', `${open ? 'Contraer' : 'Desplegar'} ${node.name}`);
     chev.setAttribute('aria-expanded', String(open));
     chev.addEventListener('click', () => toggleNode(node.key));
   } else {
@@ -388,7 +388,7 @@ function treeNode(node, depth) {
   if (active) name.setAttribute('aria-current', 'page');
   name.addEventListener('click', () => (node.path ? go(node.path) : toggleNode(node.key)));
   if (!node.path) {
-    name.title = 'Double-click to rename';
+    name.title = 'Doble clic para cambiar el nombre';
     name.addEventListener('dblclick', () => renameFolder(node));
   }
 
@@ -401,9 +401,9 @@ function treeNode(node, depth) {
     b.addEventListener('click', onClick);
     return b;
   };
-  row.append(chev, name, rowButton('+', 'Add a page inside', () => createPage(`${node.key}/`)));
-  if (!node.path) row.append(rowButton(icon('folder', 13), 'Add a folder inside', () => createFolder(`${node.key}/`)));
-  row.append(rowButton('×', 'Move to trash', () => (node.path ? deletePage(node) : deleteFolder(node))));
+  row.append(chev, name, rowButton('+', 'Añadir una página dentro', () => createPage(`${node.key}/`)));
+  if (!node.path) row.append(rowButton(icon('folder', 13), 'Añadir una carpeta dentro', () => createFolder(`${node.key}/`)));
+  row.append(rowButton('×', 'Mover a la papelera', () => (node.path ? deletePage(node) : deleteFolder(node))));
 
   // Drag a page or folder onto another one to move it inside; onto the "Pages" header for the top level.
   row.draggable = true;
@@ -439,17 +439,23 @@ const parentKey = (key) => key.slice(0, Math.max(0, key.lastIndexOf('/')));
 // Not into itself, its own sub-tree, or the folder it is already in.
 const canDropInto = (key) => !!treeDrag && key !== treeDrag.key && !key.startsWith(`${treeDrag.key}/`) && parentKey(treeDrag.key) !== key;
 
+// A rename rewrites the links that pointed at the moved note. If that changed the open page (already saved, see
+// flushSave), show it from disk: otherwise its next save would be refused as a conflict.
+const reloadIfRelinked = (res) => (state.page && res.relinked?.includes(state.page.path) ? openPage(state.page.path) : null);
+
 async function moveNode(node, target) {
   const toKey = target ? `${target}/${node.name}` : node.name;
   if (toKey === node.key) return;
   await flushSave();
+  let res;
   try {
-    if (node.path) await api('POST', '/api/rename', { from: node.path, to: `${toKey}.md` });
-    else await api('POST', '/api/rename', { from: node.key, to: toKey, folder: true });
+    if (node.path) res = await api('POST', '/api/rename', { from: node.path, to: `${toKey}.md` });
+    else res = await api('POST', '/api/rename', { from: node.key, to: toKey, folder: true });
   } catch (e) {
     return setStatus(e.message);
   }
   movedKey(node.key, toKey);
+  await reloadIfRelinked(res);
   if (target) expanded.add(target);
   saveExpanded();
   await loadTree();
@@ -468,9 +474,9 @@ function movedKey(from, to) {
 }
 
 async function createFolder(prefix = '') {
-  const name = (await askText('New folder name'))?.replace(/\s+/g, ' ').trim();
+  const name = (await askText('Nombre de la carpeta nueva'))?.replace(/\s+/g, ' ').trim();
   if (!name) return;
-  if (!validName(name)) return setStatus(BAD_NAME.replace('Page', 'Folder'));
+  if (!validName(name)) return setStatus(BAD_NAME.replace('de página', 'de carpeta'));
   try {
     await api('POST', '/api/folder', { path: prefix + name });
   } catch (e) {
@@ -482,24 +488,26 @@ async function createFolder(prefix = '') {
 }
 
 async function renameFolder(node) {
-  const name = (await askText('Rename folder', node.name))?.replace(/\s+/g, ' ').trim();
+  const name = (await askText('Cambiar el nombre de la carpeta', node.name))?.replace(/\s+/g, ' ').trim();
   if (!name || name === node.name) return;
-  if (!validName(name)) return setStatus(BAD_NAME.replace('Page', 'Folder'));
+  if (!validName(name)) return setStatus(BAD_NAME.replace('de página', 'de carpeta'));
   const parent = parentKey(node.key);
   const to = parent ? `${parent}/${name}` : name;
   await flushSave();
+  let res;
   try {
-    await api('POST', '/api/rename', { from: node.key, to, folder: true });
+    res = await api('POST', '/api/rename', { from: node.key, to, folder: true });
   } catch (e) {
     return setStatus(e.message);
   }
   movedKey(node.key, to);
+  await reloadIfRelinked(res);
   saveExpanded();
   await loadTree();
 }
 
 async function deleteFolder(node) {
-  if (!confirm(`Move the folder “${node.name}” and everything in it to the trash (.trash folder)?`)) return;
+  if (!confirm(`¿Mover la carpeta “${node.name}” y todo lo que contiene a la papelera (carpeta .trash)?`)) return;
   await flushSave();
   try {
     await api('POST', '/api/delete', { path: node.key, folder: true });
@@ -525,7 +533,7 @@ function renderCrumbs() {
   const nav = $('#crumbs');
   nav.replaceChildren();
   if (!state.page) {
-    nav.append(el('span', 'crumb', 'Vault'), el('span', 'sep', '/'), el('span', 'crumb', state.view === 'graph' ? 'Graph view' : 'Overview'));
+    nav.append(el('span', 'crumb', 'Vault'), el('span', 'sep', '/'), el('span', 'crumb', state.view === 'graph' ? 'Grafo' : 'Resumen'));
     return;
   }
   const root = el('button', '', 'Vault');
@@ -548,7 +556,7 @@ function renderCrumbs() {
   });
 }
 
-async function createPage(prefix = '', title = 'Untitled') {
+async function createPage(prefix = '', title = 'Sin título') {
   const taken = new Set(allPages().map((p) => p.toLowerCase()));
   let name = title;
   for (let n = 2; taken.has(`${prefix}${name}.md`.toLowerCase()); n++) name = `${title} ${n}`;
@@ -567,8 +575,8 @@ async function createPage(prefix = '', title = 'Untitled') {
 }
 
 async function deletePage(node) {
-  const kids = node.children.length ? ' and its sub-pages' : '';
-  if (!confirm(`Move “${node.name}”${kids} to the trash (.trash folder)?`)) return;
+  const kids = node.children.length ? ' y sus subpáginas' : '';
+  if (!confirm(`¿Mover “${node.name}”${kids} a la papelera (carpeta .trash)?`)) return;
   await flushSave();
   try {
     await api('POST', '/api/delete', { path: node.path });
@@ -604,7 +612,7 @@ const showEmpty = (msg) => showOverview(msg);
 async function openPage(path) {
   await flushSave();
   if (state.page?.dirty && state.page.path !== path) {
-    if (!confirm('This page has changes that could not be saved. Leave anyway?')) {
+    if (!confirm('Esta página tiene cambios que no se han podido guardar. ¿Salir de todos modos?')) {
       history.replaceState(null, '', `#/${enc(state.page.path)}`);
       return;
     }
@@ -615,7 +623,7 @@ async function openPage(path) {
   try {
     data = await api('GET', `/api/page?path=${enc(path)}`);
   } catch (e) {
-    return showEmpty(e.status === 404 ? `“${baseName(path)}” doesn’t exist.` : e.message);
+    return showEmpty(e.status === 404 ? `“${baseName(path)}” no existe.` : e.message);
   }
   const doc = parse(data.content);
   state.page = { path, mtime: data.mtime, frontmatter: doc.frontmatter, trailing: doc.trailing, blocks: doc.blocks, dirty: false };
@@ -647,7 +655,7 @@ async function openPage(path) {
 function changed() {
   if (!state.page) return;
   state.page.dirty = true;
-  setStatus('Editing…');
+  setStatus('Editando…');
   updateMeta();
   clearTimeout(state.saveTimer);
   state.saveTimer = setTimeout(() => save(), 700);
@@ -665,12 +673,12 @@ async function doSave(force) {
   const page = state.page;
   if (!page || !page.dirty || (state.conflict && !force)) return;
   page.dirty = false;
-  setStatus('Saving…');
+  setStatus('Guardando…');
   try {
     const { mtime } = await api('PUT', '/api/page', { path: page.path, content: serialize(page), baseMtime: page.mtime, force });
     page.mtime = mtime;
     if (state.page === page) {
-      setStatus('Saved');
+      setStatus('Guardado');
       updateMeta();
     }
     scheduleGraph();
@@ -679,9 +687,9 @@ async function doSave(force) {
     if (e.status === 409) {
       state.conflict = true;
       $('#conflict').hidden = false;
-      setStatus('Not saved');
+      setStatus('Sin guardar');
     } else {
-      setStatus('Save failed, retrying…');
+      setStatus('No se pudo guardar, reintentando…');
       state.saveTimer = setTimeout(() => save(), 3000);
     }
   }
@@ -723,9 +731,10 @@ titleEl.addEventListener('focusout', async () => {
     return setStatus(BAD_NAME);
   }
   const to = `${folderOf(page.path)}${name}.md`;
+  let res;
   try {
     await flushSave();
-    await api('POST', '/api/rename', { from: page.path, to });
+    res = await api('POST', '/api/rename', { from: page.path, to });
   } catch (e) {
     if (state.page === page) titleEl.textContent = current;
     return setStatus(e.message);
@@ -734,21 +743,22 @@ titleEl.addEventListener('focusout', async () => {
     page.path = to;
     history.replaceState(null, '', `#/${enc(to)}`);
     document.title = `${name} · Vault`;
+    await reloadIfRelinked(res);
   }
   await loadTree();
 });
 
 // ---------- block rendering ----------
 const PLACEHOLDER = {
-  text: "Type '/' for commands, '[[' to link a page",
-  h1: 'Heading 1',
-  h2: 'Heading 2',
-  h3: 'Heading 3',
-  todo: 'To-do',
-  bullet: 'List',
-  numbered: 'List',
-  quote: 'Quote',
-  code: 'Code',
+  text: "Escribe '/' para insertar, '[[' para enlazar una página",
+  h1: 'Título 1',
+  h2: 'Título 2',
+  h3: 'Título 3',
+  todo: 'Tarea',
+  bullet: 'Lista',
+  numbered: 'Lista',
+  quote: 'Cita',
+  code: 'Código',
 };
 const sentinel = () => el('br', 'sentinel'); // makes a trailing newline visible in contenteditable
 
@@ -788,8 +798,8 @@ function blockEl(b, num) {
   handle.type = 'button';
   handle.draggable = true;
   handle.tabIndex = -1;
-  handle.title = 'Drag to move · click for options';
-  handle.setAttribute('aria-label', 'Move or delete block');
+  handle.title = 'Arrastra para mover · clic para ver opciones';
+  handle.setAttribute('aria-label', 'Mover o borrar el bloque');
   handle.addEventListener('click', () => blockMenu(b, handle));
   wrap.append(handle);
   if (b.type === 'divider' || b.type === 'image') {
@@ -838,7 +848,7 @@ function blockEl(b, num) {
     const box = el('input');
     box.type = 'checkbox';
     box.checked = !!b.checked;
-    box.setAttribute('aria-label', 'Done');
+    box.setAttribute('aria-label', 'Hecha');
     box.addEventListener('change', () => {
       b.checked = box.checked;
       b.mark = box.checked ? 'x' : ' ';
@@ -862,7 +872,7 @@ function blockEl(b, num) {
   }
   wrap.append(content);
   if (b.type === 'code' && b.info?.trim() === 'database') {
-    const done = el('button', 'db-tab db-done', 'Done');
+    const done = el('button', 'db-tab db-done', 'Hecho');
     done.type = 'button';
     done.addEventListener('click', () => {
       b.showSource = false;
@@ -901,12 +911,12 @@ function blockMenu(b, anchor) {
   const at = lastCell?.b === b ? lastCell : null;
   const items = [];
   if (b.type === 'table') {
-    items.push({ label: 'Add row', op: 'addRow' }, { label: 'Add column', op: 'addCol' });
-    if (at?.r > 0) items.push({ label: 'Delete row', hint: `row ${at.r}`, op: 'delRow' });
-    if (at && b.align.length > 1) items.push({ label: 'Delete column', hint: `column ${at.c + 1}`, op: 'delCol' });
+    items.push({ label: 'Añadir fila', op: 'addRow' }, { label: 'Añadir columna', op: 'addCol' });
+    if (at?.r > 0) items.push({ label: 'Borrar fila', hint: `fila ${at.r}`, op: 'delRow' });
+    if (at && b.align.length > 1) items.push({ label: 'Borrar columna', hint: `columna ${at.c + 1}`, op: 'delCol' });
   }
-  items.push({ label: 'Delete', hint: 'block', op: 'delete' });
-  menuMeta = { title: 'Block', right: b.type, foot: 'Drag ⋮⋮ to move' };
+  items.push({ label: 'Borrar', hint: 'bloque', op: 'delete' });
+  menuMeta = { title: 'Bloque', right: b.type, foot: 'Arrastra ⋮⋮ para mover' };
   openMenu(items, anchor.getBoundingClientRect(), (it) => (it.op === 'delete' ? removeBlock(b) : tableEdit(b, it.op, at?.r, at?.c)));
 }
 
@@ -924,7 +934,7 @@ function imageEl(b) {
     media.controls = true;
     media.preload = 'metadata';
     media.src = imageSrc(info.src);
-    media.addEventListener('error', () => fig.append(el('figcaption', 'mono', `Could not play: ${info.src}`)), { once: true });
+    media.addEventListener('error', () => fig.append(el('figcaption', 'mono', `No se pudo reproducir: ${info.src}`)), { once: true });
     fig.append(media);
     return fig;
   }
@@ -940,7 +950,7 @@ function imageEl(b) {
   img.alt = info.alt;
   img.draggable = false;
   if (info.width) img.width = info.width;
-  img.addEventListener('error', () => fig.append(el('figcaption', 'mono', `Image not found: ${info.src}`)), { once: true });
+  img.addEventListener('error', () => fig.append(el('figcaption', 'mono', `No se encuentra la imagen: ${info.src}`)), { once: true });
   img.src = imageSrc(info.src);
   fig.append(img);
   return fig;
@@ -959,9 +969,9 @@ async function uploadImage(file) {
 
 async function insertImages(files, list, index) {
   const images = files.filter((f) => f.type.startsWith('image/'));
-  if (!images.length) return setStatus('Only image files can be added');
+  if (!images.length) return setStatus('Solo se pueden añadir imágenes');
   const page = state.page;
-  setStatus('Uploading…');
+  setStatus('Subiendo…');
   const added = [];
   for (const f of images) {
     try {
@@ -1071,11 +1081,11 @@ function tableEl(b) {
   });
   const addCol = el('button', 'tbl-add tbl-add-col', '+');
   addCol.type = 'button';
-  addCol.title = 'Add column';
+  addCol.title = 'Añadir columna';
   addCol.addEventListener('click', () => tableEdit(b, 'addCol'));
   const addRow = el('button', 'tbl-add tbl-add-row', '+');
   addRow.type = 'button';
-  addRow.title = 'Add row';
+  addRow.title = 'Añadir fila';
   addRow.addEventListener('click', () => tableEdit(b, 'addRow'));
   box.append(table, addCol, addRow);
   return box;
@@ -1096,7 +1106,7 @@ function insertStructure(b, item, start) {
   }
   const nb =
     item.type === 'table'
-      ? newBlock('table', '', { rows: [['Column 1', 'Column 2', 'Column 3'], ['', '', ''], ['', '', '']], align: ['', '', ''] })
+      ? newBlock('table', '', { rows: [['Columna 1', 'Columna 2', 'Columna 3'], ['', '', ''], ['', '', '']], align: ['', '', ''] })
       : newBlock('columns', '', { cols: (item.ratios ?? Array.from({ length: item.n })).map((ratio) => ({ ...newColumn(), ratio })) });
   if (nb.type === 'table') nb.text = formatTable(nb.rows, nb.align);
   const i = list.indexOf(b);
@@ -1477,25 +1487,25 @@ async function insertItem(b, item) {
     case 'callout':
       return focusBlock(insertBlocks(b, [newBlock('quote', '[!note] ')]).id, 'end');
     case 'embed': {
-      const raw = await askText('Web address to embed (https://…). YouTube links are converted.');
+      const raw = await askText('Dirección web que incrustar (https://…). Los enlaces de YouTube se convierten solos.');
       if (!raw?.trim()) return;
       const url = embedUrl(raw.trim());
-      if (!isHttps(url)) return setStatus('Only https:// addresses can be embedded');
+      if (!isHttps(url)) return setStatus('Solo se pueden incrustar direcciones https://');
       return insertBlocks(b, [newBlock('embed', embedLine(url))]);
     }
     case 'button': {
-      const label = (await askText('Button text', 'New note'))?.replace(/[<>"]/g, '').trim();
+      const label = (await askText('Texto del botón', 'Nueva nota'))?.replace(/[<>"]/g, '').trim();
       if (!label) return;
-      const folder = await askText('Folder for the new note (empty = top level)', folderOf(state.page.path).slice(0, -1));
+      const folder = await askText('Carpeta de la nota nueva (vacío = raíz)', folderOf(state.page.path).slice(0, -1));
       if (folder === null) return;
-      if (/["<>]/.test(folder)) return setStatus('Folder names cannot contain " < >');
+      if (/["<>]/.test(folder)) return setStatus('Los nombres de carpeta no pueden contener " < >');
       return insertBlocks(b, [newBlock('button', buttonLine(folder.trim(), label))]);
     }
     case 'database':
       return openDatabasePicker(b, item);
     case 'subpages': {
       const kids = (pageNode(state.page.path.slice(0, -3))?.children ?? []).filter((c) => c.path);
-      if (!kids.length) return setStatus('This page has no sub-pages');
+      if (!kids.length) return setStatus('Esta página no tiene subpáginas');
       return insertBlocks(
         b,
         kids.map((c) => newBlock('bullet', `[[${c.name}]]`)),
@@ -1504,7 +1514,7 @@ async function insertItem(b, item) {
     case 'cover':
       return editCover('source');
     case 'icon': {
-      const emoji = await askText('Icon for this page: one emoji, or an image (a file of the vault or an https:// address). Leave empty to remove it.', '');
+      const emoji = await askText('Icono de la página: un emoji o una imagen (un archivo del vault o una dirección https://). Déjalo vacío para quitarlo.', '');
       if (emoji === null) return;
       return setPageProp('icon', emoji.trim());
     }
@@ -1515,10 +1525,10 @@ async function insertItem(b, item) {
     case 'media':
       return pickMedia(b, item.kind);
     case 'bookmark': {
-      const url = await askText('Web address (https://…)');
+      const url = await askText('Dirección web (https://…)');
       if (url === null) return;
-      if (!isHttps(url.trim())) return setStatus('Bookmarks need an https:// address');
-      const title = await askText('Title for the bookmark', url.trim().replace(/^https:\/\//, '').split('/')[0]);
+      if (!isHttps(url.trim())) return setStatus('Los marcadores necesitan una dirección https://');
+      const title = await askText('Título del marcador', url.trim().replace(/^https:\/\//, '').split('/')[0]);
       if (title === null) return;
       return insertBlocks(b, [newBlock('bookmark', bookmarkLine(url.trim(), title.trim() || url.trim()))]);
     }
@@ -1642,10 +1652,10 @@ async function setNoteProp(path, key, value) {
 
 const embedEl = (b) => {
   const src = embedSrc(b.text);
-  if (!isHttps(src)) return el('p', 'db-empty', 'This embed needs an https:// address. Delete it and add a new one.');
+  if (!isHttps(src)) return el('p', 'db-empty', 'Esta incrustación necesita una dirección https://. Bórrala y añade otra.');
   const frame = el('iframe', 'embed');
   frame.src = src;
-  frame.title = 'Embedded content';
+  frame.title = 'Contenido incrustado';
   frame.loading = 'lazy';
   frame.referrerPolicy = 'no-referrer';
   frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms allow-presentation');
@@ -1656,7 +1666,7 @@ const buttonEl = (b) => {
   const parts = buttonParts(b.text) ?? { folder: '', label: 'Button' };
   const btn = el('button', 'btn-block', parts.label);
   btn.type = 'button';
-  btn.addEventListener('click', () => createPage(parts.folder ? `${parts.folder.replace(/\/+$/, '')}/` : '', 'Untitled'));
+  btn.addEventListener('click', () => createPage(parts.folder ? `${parts.folder.replace(/\/+$/, '')}/` : '', 'Sin título'));
   return btn;
 };
 
@@ -1668,8 +1678,8 @@ async function openDatabasePicker(b, item) {
     const { databases } = await api('GET', '/api/databases');
     // The page itself is left out: embedding a database inside its own page would show it recursively.
     const found = databases.filter((d) => d.path !== state.page.path).map((d) => d.path.slice(0, -3));
-    const items = [...found.map((page) => ({ label: page, hint: 'existing', key: page })), { label: 'Create a new database', hint: 'new', key: null }];
-    menuMeta = { title: 'Choose a database', right: `${found.length} existing`, foot: '↑↓ navigate · ↵ choose · esc close' };
+    const items = [...found.map((page) => ({ label: page, hint: 'existente', key: page })), { label: 'Crear una base de datos nueva', hint: 'nueva', key: null }];
+    menuMeta = { title: 'Elige una base de datos', right: `${found.length} existentes`, foot: '↑↓ moverse · ↵ elegir · esc cerrar' };
     openMenu(items, rect, async (pick) => {
       try {
         const page = pick.key ?? (await createDatabase(b, item));
@@ -1686,10 +1696,10 @@ async function openDatabasePicker(b, item) {
 // A new database lives inside the current page: "Page/Name.md" is its page and "Page/Name/" holds its rows.
 // Returns the page path without ".md" (the same name the embed block uses), or null when cancelled.
 async function createDatabase(b, item) {
-  const name = (await askText('Name for the new database', 'Database'))?.replace(/\s+/g, ' ').trim();
+  const name = (await askText('Nombre de la base de datos nueva', 'Base de datos'))?.replace(/\s+/g, ' ').trim();
   if (!name) return null;
   if (!validName(name)) {
-    setStatus(BAD_NAME.replace('Page', 'Database'));
+    setStatus(BAD_NAME.replace('de página', 'de base de datos'));
     return null;
   }
   const stem = state.page.path.slice(0, -3);
@@ -1711,8 +1721,8 @@ function embedDatabase(b, page) {
 async function createDbRow(cfg) {
   const folder = cfg.source.replace(/\/+$/, '');
   const taken = new Set(allPages().map((p) => p.toLowerCase()));
-  let name = 'Untitled';
-  for (let n = 2; taken.has(`${folder}/${name}.md`.toLowerCase()); n++) name = `Untitled ${n}`;
+  let name = 'Sin título';
+  for (let n = 2; taken.has(`${folder}/${name}.md`.toLowerCase()); n++) name = `Sin título ${n}`;
   const path = `${folder}/${name}.md`;
   await api('PUT', '/api/page', { path, content: '', baseMtime: null });
   await loadTree();
@@ -1728,7 +1738,7 @@ function pickMedia(b, kind) {
   input.addEventListener('change', async () => {
     const files = [...input.files];
     if (!files.length) return;
-    setStatus('Uploading…');
+    setStatus('Subiendo…');
     const names = [];
     try {
       for (const f of files) names.push(await uploadImage(f));
@@ -1744,7 +1754,7 @@ function pickMedia(b, kind) {
 // A web bookmark card: the title is the one the user typed, nothing is fetched from the site.
 const bookmarkEl = (b) => {
   const parts = bookmarkParts(b.text);
-  if (!parts) return el('p', 'db-empty', 'This bookmark needs an https:// address. Delete it and add a new one.');
+  if (!parts) return el('p', 'db-empty', 'Este marcador necesita una dirección https://. Bórralo y añade otro.');
   const a = el('a', 'bookmark-card');
   a.href = parts.url;
   a.target = '_blank';
@@ -1853,39 +1863,39 @@ function menuKey(e) {
 
 // The insert menu, in Notion's sections. `group` gives the section heading, `icon` the row icon.
 const SLASH = [
-  { group: 'Basic blocks', label: 'Text', type: 'text', icon: 'text', keys: 'paragraph plain' },
-  { group: 'Basic blocks', label: 'Heading 1', type: 'h1', icon: 'heading', keys: 'h1 title', hint: '#' },
-  { group: 'Basic blocks', label: 'Heading 2', type: 'h2', icon: 'heading', keys: 'h2 subtitle', hint: '##' },
-  { group: 'Basic blocks', label: 'Heading 3', type: 'h3', icon: 'heading', keys: 'h3', hint: '###' },
-  { group: 'Basic blocks', label: 'To-do list', type: 'todo', icon: 'check', keys: 'todo task checkbox', hint: '[]' },
-  { group: 'Basic blocks', label: 'Bulleted list', type: 'bullet', icon: 'list', keys: 'bullet ul', hint: '-' },
-  { group: 'Basic blocks', label: 'Numbered list', type: 'numbered', icon: 'numbered', keys: 'numbered ol', hint: '1.' },
-  { group: 'Basic blocks', label: 'Quote', type: 'quote', icon: 'quote', keys: 'blockquote', hint: '>' },
-  { group: 'Basic blocks', label: 'Callout', type: 'callout', icon: 'alert', keys: 'note info tip warning box', hint: '[!]' },
-  { group: 'Basic blocks', label: 'Code', type: 'code', icon: 'code', keys: 'snippet', hint: '```' },
-  { group: 'Basic blocks', label: 'Divider', type: 'divider', icon: 'divider', keys: 'hr line separator', hint: '---' },
-  { group: 'Basic blocks', label: 'Link to page', type: 'link', icon: 'link', keys: 'wikilink mention page', hint: '[[' },
-  { group: 'Basic blocks', label: 'Simple table', type: 'table', icon: 'table', keys: 'grid rows spreadsheet markdown', hint: '|' },
-  { group: 'Basic blocks', label: 'Button: new note', type: 'button', icon: 'button', keys: 'template create new note', hint: '[ ]' },
-  { group: 'Database', label: 'Table', type: 'database', view: 'table', icon: 'table', keys: 'database table list records', hint: '▦' },
-  { group: 'Database', label: 'Board', type: 'database', view: 'board', icon: 'board', keys: 'database board kanban status group', hint: '▦' },
-  { group: 'Database', label: 'Gallery', type: 'database', view: 'gallery', icon: 'grid', keys: 'database gallery cards covers', hint: '▦' },
-  { group: 'Database', label: 'List', type: 'database', view: 'list', icon: 'list', keys: 'database list rows', hint: '▦' },
-  { group: 'Database', label: 'Number chart', type: 'database', view: 'number', icon: 'hash', keys: 'database number count sum total', hint: '#' },
-  { group: 'Database', label: 'Donut chart', type: 'database', view: 'donut', icon: 'donut', keys: 'database donut pie chart share', hint: '◔' },
-  { group: 'Media', label: 'Image', type: 'image', icon: 'image', keys: 'picture photo upload', hint: '![[ ]]' },
-  { group: 'Media', label: 'Video', type: 'media', kind: 'video', icon: 'video', keys: 'movie clip mp4 upload', hint: '▶' },
-  { group: 'Media', label: 'Audio', type: 'media', kind: 'audio', icon: 'audio', keys: 'sound music mp3 upload', hint: '♪' },
-  { group: 'Media', label: 'File', type: 'media', kind: 'file', icon: 'file', keys: 'document pdf attachment upload', hint: '⎘' },
-  { group: 'Media', label: 'Web bookmark', type: 'bookmark', icon: 'bookmark', keys: 'link website url card', hint: '🔖' },
-  { group: 'Media', label: 'Embed or video link', type: 'embed', icon: 'globe', keys: 'iframe youtube web page clock timer', hint: '<>' },
-  { group: 'Layout', label: '2 columns', type: 'columns', n: 2, icon: 'columns', keys: 'div layout side', hint: '▥' },
-  { group: 'Layout', label: '3 columns', type: 'columns', n: 3, icon: 'columns', keys: 'div layout side', hint: '▥' },
-  { group: 'Layout', label: '3 columns, narrow · wide · narrow', type: 'columns', ratios: [16, 61, 22], icon: 'columns', keys: 'layout ratio book', hint: '▥' },
-  { group: 'Page', label: 'Sub-page links', type: 'subpages', icon: 'subpages', keys: 'children links pages index', hint: '↳' },
-  { group: 'Page', label: 'Cover image', type: 'cover', icon: 'image', keys: 'banner header picture page', hint: '▭' },
-  { group: 'Page', label: 'Icon', type: 'icon', icon: 'smile', keys: 'emoji page symbol', hint: '☺' },
-  { group: 'Page', label: 'Full width', type: 'fullwidth', icon: 'expand', keys: 'wide width page', hint: '↔' },
+  { group: 'Bloques básicos', label: 'Texto', type: 'text', icon: 'text', keys: 'text paragraph plain parrafo' },
+  { group: 'Bloques básicos', label: 'Título 1', type: 'h1', icon: 'heading', keys: 'h1 title heading titulo encabezado', hint: '#' },
+  { group: 'Bloques básicos', label: 'Título 2', type: 'h2', icon: 'heading', keys: 'h2 subtitle heading titulo subtitulo encabezado', hint: '##' },
+  { group: 'Bloques básicos', label: 'Título 3', type: 'h3', icon: 'heading', keys: 'h3 heading titulo encabezado', hint: '###' },
+  { group: 'Bloques básicos', label: 'Lista de tareas', type: 'todo', icon: 'check', keys: 'todo task checkbox casilla pendiente', hint: '[]' },
+  { group: 'Bloques básicos', label: 'Lista de viñetas', type: 'bullet', icon: 'list', keys: 'bullet ul list vinetas puntos', hint: '-' },
+  { group: 'Bloques básicos', label: 'Lista numerada', type: 'numbered', icon: 'numbered', keys: 'numbered ol list numeros', hint: '1.' },
+  { group: 'Bloques básicos', label: 'Cita', type: 'quote', icon: 'quote', keys: 'quote blockquote', hint: '>' },
+  { group: 'Bloques básicos', label: 'Callout (aviso)', type: 'callout', icon: 'alert', keys: 'note info tip warning box nota consejo advertencia destacado', hint: '[!]' },
+  { group: 'Bloques básicos', label: 'Código', type: 'code', icon: 'code', keys: 'code snippet codigo', hint: '```' },
+  { group: 'Bloques básicos', label: 'Divisor', type: 'divider', icon: 'divider', keys: 'divider hr line separator linea separador', hint: '---' },
+  { group: 'Bloques básicos', label: 'Enlace a página', type: 'link', icon: 'link', keys: 'link wikilink mention page pagina', hint: '[[' },
+  { group: 'Bloques básicos', label: 'Tabla simple', type: 'table', icon: 'table', keys: 'table grid rows spreadsheet markdown filas', hint: '|' },
+  { group: 'Bloques básicos', label: 'Botón: nota nueva', type: 'button', icon: 'button', keys: 'button template create new note boton plantilla crear', hint: '[ ]' },
+  { group: 'Base de datos', label: 'Tabla', type: 'database', view: 'table', icon: 'table', keys: 'database table list records registros', hint: '▦' },
+  { group: 'Base de datos', label: 'Tablero', type: 'database', view: 'board', icon: 'board', keys: 'database board kanban status group estado', hint: '▦' },
+  { group: 'Base de datos', label: 'Galería', type: 'database', view: 'gallery', icon: 'grid', keys: 'database gallery cards covers galeria tarjetas portadas', hint: '▦' },
+  { group: 'Base de datos', label: 'Lista', type: 'database', view: 'list', icon: 'list', keys: 'database list rows filas', hint: '▦' },
+  { group: 'Base de datos', label: 'Número', type: 'database', view: 'number', icon: 'hash', keys: 'database number chart count sum total numero grafico suma', hint: '#' },
+  { group: 'Base de datos', label: 'Gráfico de donut', type: 'database', view: 'donut', icon: 'donut', keys: 'database donut pie chart share grafico tarta', hint: '◔' },
+  { group: 'Medios', label: 'Imagen', type: 'image', icon: 'image', keys: 'image picture photo upload foto subir', hint: '![[ ]]' },
+  { group: 'Medios', label: 'Vídeo', type: 'media', kind: 'video', icon: 'video', keys: 'video movie clip mp4 upload subir', hint: '▶' },
+  { group: 'Medios', label: 'Audio', type: 'media', kind: 'audio', icon: 'audio', keys: 'sound music mp3 upload sonido musica subir', hint: '♪' },
+  { group: 'Medios', label: 'Archivo', type: 'media', kind: 'file', icon: 'file', keys: 'file document pdf attachment upload documento adjunto subir', hint: '⎘' },
+  { group: 'Medios', label: 'Marcador web', type: 'bookmark', icon: 'bookmark', keys: 'bookmark link website url card enlace tarjeta', hint: '🔖' },
+  { group: 'Medios', label: 'Incrustación o enlace de vídeo', type: 'embed', icon: 'globe', keys: 'embed iframe youtube web page clock timer incrustar', hint: '<>' },
+  { group: 'Diseño', label: '2 columnas', type: 'columns', n: 2, icon: 'columns', keys: 'columns div layout side lado', hint: '▥' },
+  { group: 'Diseño', label: '3 columnas', type: 'columns', n: 3, icon: 'columns', keys: 'columns div layout side lado', hint: '▥' },
+  { group: 'Diseño', label: '3 columnas, estrecha · ancha · estrecha', type: 'columns', ratios: [16, 61, 22], icon: 'columns', keys: 'columns layout ratio book panel', hint: '▥' },
+  { group: 'Página', label: 'Enlaces a subpáginas', type: 'subpages', icon: 'subpages', keys: 'subpages children links pages index subpaginas indice', hint: '↳' },
+  { group: 'Página', label: 'Imagen de portada', type: 'cover', icon: 'image', keys: 'cover banner header picture page cabecera', hint: '▭' },
+  { group: 'Página', label: 'Icono', type: 'icon', icon: 'smile', keys: 'icon emoji page symbol simbolo', hint: '☺' },
+  { group: 'Página', label: 'Ancho completo', type: 'fullwidth', icon: 'expand', keys: 'full wide width page ancha', hint: '↔' },
 ];
 // Items that insert something new (a block, or a page property) instead of changing the current block's type.
 const INSERTS = new Set(['callout', 'embed', 'button', 'database', 'subpages', 'cover', 'icon', 'media', 'bookmark', 'fullwidth']);
@@ -1933,7 +1943,7 @@ function openSlash(content, b, query, start) {
   const q = query.toLowerCase();
   const nested = ownerList(b) !== state.page.blocks;
   const items = SLASH.filter((it) => !(nested && it.type === 'columns') && `${it.label} ${it.keys}`.toLowerCase().includes(q));
-  menuMeta = { title: 'Blocks', right: `${items.length}`, foot: '↑↓ navigate · ↵ insert · esc close' };
+  menuMeta = { title: 'Bloques', right: `${items.length}`, foot: '↑↓ moverse · ↵ insertar · esc cerrar' };
   openMenu(items, caretRect() ?? content.getBoundingClientRect(), (item) => {
     const [caret] = offsets(content);
     b.text = b.text.slice(0, start) + b.text.slice(caret); // drop the "/query"
@@ -1980,9 +1990,9 @@ function openLinkMenu(content, b, query, start) {
   const matches = items.length;
   const name = query.trim();
   if (validName(name) && !pages.some((p) => baseName(p).toLowerCase() === name.toLowerCase())) {
-    items.push({ label: `New page “${name}”`, hint: 'create', create: name });
+    items.push({ label: `Página nueva “${name}”`, hint: 'crear', create: name });
   }
-  menuMeta = { title: 'Link resolver', right: `${matches} match${matches === 1 ? '' : 'es'}`, foot: '↵ insert · ↑↓ navigate · esc close' };
+  menuMeta = { title: 'Enlazar página', right: `${matches} coincidencia${matches === 1 ? '' : 's'}`, foot: '↵ insertar · ↑↓ moverse · esc cerrar' };
   openMenu(items, caretRect() ?? content.getBoundingClientRect(), async (item) => {
     const [caret] = offsets(content);
     const lt = item.lt ?? item.create;
@@ -2244,7 +2254,7 @@ function renderResults() {
       return li;
     }),
   );
-  if (!sw.items.length) resultsEl.append(el('li', 'result none', 'No matches'));
+  if (!sw.items.length) resultsEl.append(el('li', 'result none', 'Sin resultados'));
   highlightResults();
 }
 
@@ -2268,7 +2278,7 @@ async function updateSwitcher() {
         .filter((p) => baseName(p).toLowerCase().includes(ql))
         .slice(0, q ? 6 : 15)
         .map((p) => ({ path: p, label: baseName(p), hint: folderOf(p) }));
-  const create = validName(q) && !pages.some((p) => baseName(p).toLowerCase() === ql) ? [{ create: q, label: `Create page “${q}”`, hint: 'new page' }] : [];
+  const create = validName(q) && !pages.some((p) => baseName(p).toLowerCase() === ql) ? [{ create: q, label: `Crear la página “${q}”`, hint: 'página nueva' }] : [];
   sw.items = [...titleHits, ...create];
   sw.index = 0;
   renderResults();
@@ -2364,7 +2374,7 @@ addEventListener('beforeunload', (e) => {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flushSave();
 });
-addEventListener('unhandledrejection', (e) => setStatus(e.reason?.message ?? 'Something went wrong'));
+addEventListener('unhandledrejection', (e) => setStatus(e.reason?.message ?? 'Algo ha salido mal'));
 // Right-click on a block opens the insert menu, unless text is selected (then the browser's copy/paste menu stays).
 blocksEl.addEventListener('contextmenu', (e) => {
   if (!getSelection().isCollapsed) return;
@@ -2374,7 +2384,7 @@ blocksEl.addEventListener('contextmenu', (e) => {
   e.preventDefault();
   const [b] = found;
   const nested = ownerList(b) !== state.page.blocks;
-  menuMeta = { title: 'Insert', right: '', foot: '↑↓ navigate · ↵ insert · esc close' };
+  menuMeta = { title: 'Insertar', right: '', foot: '↑↓ moverse · ↵ insertar · esc cerrar' };
   openMenu(SLASH.filter((it) => !(nested && it.type === 'columns')), { left: e.clientX, top: e.clientY, bottom: e.clientY }, insertPicker(b));
 });
 
@@ -2382,5 +2392,5 @@ try {
   await loadTree();
   await route();
 } catch {
-  showEmpty('Can’t load your notes. Restart Vault and try again.');
+  showEmpty('No se pueden cargar tus notas. Reinicia Vault y prueba otra vez.');
 }

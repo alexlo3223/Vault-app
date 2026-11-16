@@ -161,6 +161,20 @@ test('images are uploaded to attachments and served by name', async () => {
   assert.equal((await up('notes.pdf', 'application/pdf', Buffer.from('%PDF'))).status, 200);
   assert.equal((await raw('GET', '/api/file?link=attachments/notes.pdf')).headers['content-disposition'], 'attachment');
   assert.equal((await raw('GET', '/api/file?link=attachments/my%20pic.png')).status, 200);
+
+  // byte ranges, so a player can seek in a long video without the server reading the whole file
+  const part = (range) => raw('GET', '/api/file?link=attachments/notes.pdf', range ? { range } : {});
+  const whole = await part();
+  assert.deepEqual([whole.status, whole.body, whole.headers['accept-ranges'], whole.headers['content-length']], [200, '%PDF', 'bytes', '4']);
+  const mid = await part('bytes=1-2');
+  assert.deepEqual([mid.status, mid.body, mid.headers['content-range'], mid.headers['content-length']], [206, 'PD', 'bytes 1-2/4', '2']);
+  assert.equal((await part('bytes=2-')).body, 'DF');
+  assert.equal((await part('bytes=-1')).body, 'F');
+  assert.equal((await part('bytes=1-99')).headers['content-range'], 'bytes 1-3/4');
+  const past = await part('bytes=9-');
+  assert.deepEqual([past.status, past.headers['content-range']], [416, 'bytes */4']);
+  assert.equal((await part('lines=1-2')).status, 200);
+
   assert.equal((await raw('GET', '/api/file?link=../secret.png')).status, 404);
   assert.equal((await raw('GET', '/api/file?link=Note.md')).status, 404);
 });
@@ -182,4 +196,23 @@ test('the UI is served with a content security policy', async () => {
   assert.match(res.headers['content-security-policy'], /default-src 'self'/);
   assert.match(res.body, /<script type="module" src="\/app.js">/);
   assert.equal((await raw('GET', '/server.mjs')).status, 404);
+});
+
+test('renaming a note rewrites the links that pointed at it, and leaves code and other links alone', async () => {
+  const read = async (p) => (await call('GET', `/api/page?path=${encodeURIComponent(p)}`)).data.content;
+  await put('Relink/Old.md', 'see [[Other]]\n');
+  await put('Relink/Old/Child.md', 'sub-page\n');
+  await put('Relink/Other.md', 'x\n');
+  await put('Relink/Refs.md', '[[Old]] [[Old|alias]] [[Old#Part]] ![[Old]] [[Relink/Old]] [[Child]] [[Other]] `[[Old]]`\n```\n[[Old]]\n```\n');
+
+  const res = await call('POST', '/api/rename', { from: 'Relink/Old.md', to: 'Relink/New.md' });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.data.relinked, ['Relink/Refs.md']);
+  assert.equal(await read('Relink/Refs.md'), '[[New]] [[New|alias]] [[New#Part]] ![[New]] [[Relink/New]] [[Child]] [[Other]] `[[Old]]`\n```\n[[Old]]\n```\n');
+  assert.equal(await read('Relink/New.md'), 'see [[Other]]\n');
+
+  // Moving a folder keeps links by name working without touching them; links by path follow the move.
+  const moved = await call('POST', '/api/rename', { from: 'Relink', to: 'Relinked', folder: true });
+  assert.deepEqual(moved.data.relinked, ['Relinked/Refs.md']);
+  assert.match(await read('Relinked/Refs.md'), /^\[\[New\]\] .* \[\[Relinked\/New\]\] \[\[Child\]\]/);
 });

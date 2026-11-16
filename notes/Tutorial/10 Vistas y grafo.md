@@ -7,7 +7,7 @@ cover: banner-vistas.jpg
 
 Vault tiene tres vistas además de las notas.
 
-## Resumen (Overview)
+## Resumen
 
 Es la vista de inicio de Vault: un resumen de tus notas y de sus etiquetas, con las notas en las que has trabajado recientemente.
 
@@ -26,11 +26,11 @@ Muestra cada nota como un punto y cada `[[enlace]]` como una línea. Las notas c
 
 En una base, ⚙ abre los ajustes de la vista actual:
 
-- **Nombre** y **Layout** (tabla, tablero, galería, lista, número, donut).
-- **Shown properties**: qué columnas se muestran.
-- **Filters**: condiciones sobre las propiedades.
-- **Sort**: orden por una propiedad, ascendente o descendente.
-- **Group by** para tablero y donut, y **Value** y **Calculate** para números.
+- **Nombre** y **Tipo de vista** (tabla, tablero, galería, lista, número, donut).
+- **Propiedades visibles**: qué columnas se muestran.
+- **Filtros**: condiciones sobre las propiedades.
+- **Ordenar**: orden por una propiedad, ascendente o descendente.
+- **Agrupar por** para tablero y donut, y **Valor** y **Calcular** para números.
 
 Las vistas se guardan en la página de la base, así que cualquier nota que la inserte las comparte.
 

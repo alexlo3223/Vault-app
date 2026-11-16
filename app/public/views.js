@@ -88,15 +88,15 @@ const button = (className, label, onClick) => {
   return b;
 };
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-const folderOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : 'root');
+const folderOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : 'raíz');
 
 export function ago(ms, now = Date.now()) {
   const s = Math.max(0, (now - ms) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  if (s < 604800) return `${Math.floor(s / 86400)}d ago`;
-  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: now - ms > 31536e6 ? 'numeric' : undefined });
+  if (s < 60) return 'ahora mismo';
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
+  if (s < 604800) return `hace ${Math.floor(s / 86400)} d`;
+  return new Date(ms).toLocaleDateString('es', { month: 'short', day: 'numeric', year: now - ms > 31536e6 ? 'numeric' : undefined });
 }
 
 export const fmtSize = (b) => (b < 1024 ? `${b} B` : `${(b / 1024).toFixed(1)} KB`);
@@ -123,9 +123,9 @@ function noteCard(n, h) {
   top.append(el('span', 'pill mono', folderOf(n.path)), el('span', 'nc-time mono', ago(n.mtime)));
   const foot = el('div', 'nc-foot');
   const links = el('span', 'nc-links');
-  links.append(el('span', 'dot'), document.createTextNode(`${n.inCount} backlink${n.inCount === 1 ? '' : 's'}`));
+  links.append(el('span', 'dot'), document.createTextNode(`${n.inCount} entrante${n.inCount === 1 ? '' : 's'}`));
   foot.append(links, ...n.tags.slice(0, 2).map((t) => el('span', 'tag-chip static mono', `#${t}`)));
-  card.append(top, el('h3', 'nc-title', n.name), el('p', n.snippet ? 'nc-snippet' : 'nc-snippet muted', n.snippet || 'Empty note'), foot);
+  card.append(top, el('h3', 'nc-title', n.name), el('p', n.snippet ? 'nc-snippet' : 'nc-snippet muted', n.snippet || 'Nota vacía'), foot);
   return card;
 }
 
@@ -145,7 +145,7 @@ export function renderOverview(root, data, h) {
   const { nodes, edges, unresolved } = data;
   if (!nodes.length) {
     const empty = el('div', 'overview empty-state');
-    empty.append(el('h1', 'display', 'Your vault is empty'), el('p', 'sub', 'Create a page, or point the app at a folder of Markdown notes.'), button('btn primary', 'Create first page', () => h.create()));
+    empty.append(el('h1', 'display', 'Tu vault está vacío'), el('p', 'sub', 'Crea una página, o apunta la app a una carpeta con notas Markdown.'), button('btn primary', 'Crear la primera página', () => h.create()));
     root.append(empty);
     return;
   }
@@ -159,23 +159,23 @@ export function renderOverview(root, data, h) {
   const wrap = el('div', 'overview');
   const head = el('div', 'ov-head');
   const title = el('div');
-  title.append(el('p', 'eyebrow mono', 'Overview'), el('h1', 'display', 'Your vault'), el('p', 'sub', `${nodes.length} notes · ${linkTotal} links · ${orphans.length} without connections`));
+  title.append(el('p', 'eyebrow mono', 'Resumen'), el('h1', 'display', 'Tu vault'), el('p', 'sub', `${nodes.length} notas · ${linkTotal} enlaces · ${orphans.length} sin conexiones`));
   const seg = el('div', 'seg');
   seg.setAttribute('role', 'group');
-  seg.setAttribute('aria-label', 'Filter notes');
+  seg.setAttribute('aria-label', 'Filtrar notas');
   const filters = [
-    ['all', 'All'],
-    ['recent', 'Recent'],
-    ['orphans', `Orphans${orphans.length ? ` ${orphans.length}` : ''}`],
+    ['all', 'Todas'],
+    ['recent', 'Recientes'],
+    ['orphans', `Huérfanas${orphans.length ? ` ${orphans.length}` : ''}`],
   ];
   head.append(title, seg);
 
   const metrics = el('div', 'metrics');
   metrics.append(
-    metric('file', 'Notes', nodes.length, `${thisWeek} edited this week`, 'amber'),
-    metric('link', 'Links', linkTotal, 'between notes'),
-    metric('unlink', 'Orphans', orphans.length, 'no links in or out'),
-    metric('alert', 'Unresolved', ghosts.size, 'links to missing notes', ghosts.size ? 'crimson' : ''),
+    metric('file', 'Notas', nodes.length, `${thisWeek} editadas esta semana`, 'amber'),
+    metric('link', 'Enlaces', linkTotal, 'entre notas'),
+    metric('unlink', 'Huérfanas', orphans.length, 'sin enlaces de entrada ni de salida'),
+    metric('alert', 'Sin resolver', ghosts.size, 'enlaces a notas que no existen', ghosts.size ? 'crimson' : ''),
   );
 
   const section = el('section', 'ov-section');
@@ -195,11 +195,11 @@ export function renderOverview(root, data, h) {
     );
     const pool = overviewFilter === 'orphans' ? orphans : overviewFilter === 'recent' ? nodes.filter((n) => n.mtime > weekAgo) : nodes;
     const list = [...pool].sort((a, b) => b.mtime - a.mtime).slice(0, 12);
-    shown.textContent = `${list.length} of ${pool.length}`;
+    shown.textContent = `${list.length} de ${pool.length}`;
     grid.replaceChildren(...list.map((n) => noteCard(n, h)));
-    if (!list.length) grid.append(el('p', 'muted', overviewFilter === 'orphans' ? 'Every note has a connection.' : 'Nothing edited in the last 7 days.'));
+    if (!list.length) grid.append(el('p', 'muted', overviewFilter === 'orphans' ? 'Todas las notas tienen alguna conexión.' : 'Nada editado en los últimos 7 días.'));
   };
-  sectionHead.append(el('h2', 'section-h', overviewFilter === 'orphans' ? 'Orphans' : 'Recent notes'), shown);
+  sectionHead.append(el('h2', 'section-h', overviewFilter === 'orphans' ? 'Huérfanas' : 'Notas recientes'), shown);
   paint();
   section.append(sectionHead, grid);
 
@@ -212,11 +212,11 @@ export function renderOverview(root, data, h) {
     const row = el('div', 'list-row static');
     const label = el('span', 'list-main mono', `[[${g.link}]]`);
     const from = el('span', 'list-sub', `from ${[...new Set(g.from)].map((p) => p.replace(/\.md$/, '').split('/').pop()).slice(0, 2).join(', ')}`);
-    row.append(label, from, button('btn mini', 'Create', () => h.create(g.link)));
+    row.append(label, from, button('btn mini', 'Crear', () => h.create(g.link)));
     return row;
   });
   const attention = el('section', 'ov-two');
-  attention.append(attentionList('Orphans', orphans.length, orphanRows, 'Every note is connected.'), attentionList('Unresolved links', ghosts.size, ghostRows, 'No broken links.'));
+  attention.append(attentionList('Huérfanas', orphans.length, orphanRows, 'Todas las notas están conectadas.'), attentionList('Enlaces sin resolver', ghosts.size, ghostRows, 'No hay enlaces rotos.'));
 
   wrap.append(head, metrics, section, attention);
   root.append(wrap);
@@ -246,7 +246,7 @@ const kindOf = (n) => (n.kind === 'ghost' ? 'ghost' : n.deg === 0 ? 'orphan' : n
 export function renderGraphView(root, data, h) {
   root.replaceChildren();
   if (!data || !data.nodes.length) {
-    root.append(el('p', 'muted graph-empty', 'Nothing to draw yet: create a few pages and link them with [[ ]].'));
+    root.append(el('p', 'muted graph-empty', 'Aún no hay nada que dibujar: crea unas páginas y enlázalas con [[ ]].'));
     return;
   }
   const { nodes, edges } = graphModel(data);
@@ -258,7 +258,7 @@ export function renderGraphView(root, data, h) {
   const H = Math.max(400, Math.round(box.height));
   const view = { x: W / 2, y: H / 2, k: 1 };
 
-  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'group', 'aria-label': 'Note graph' }, 'graph-svg');
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'group', 'aria-label': 'Grafo de notas' }, 'graph-svg');
   const defs = svgEl('defs');
   const glow = svgEl('filter', { id: 'glow-g', x: '-60%', y: '-60%', width: '220%', height: '220%' });
   glow.append(svgEl('feGaussianBlur', { stdDeviation: 5, result: 'b' }));
@@ -324,7 +324,7 @@ export function renderGraphView(root, data, h) {
     g.addEventListener('pointerenter', () => {
       const r = g.getBoundingClientRect();
       const b = root.getBoundingClientRect();
-      tip.replaceChildren(el('strong', '', n.label), el('span', 'mono small muted', n.kind === 'ghost' ? `Missing note · linked from ${n.deg}` : `${n.note.inCount} backlinks · ${n.note.outCount} outgoing · ${ago(n.note.mtime)}`));
+      tip.replaceChildren(el('strong', '', n.label), el('span', 'mono small muted', n.kind === 'ghost' ? `Nota que no existe · enlazada desde ${n.deg}` : `${n.note.inCount} entrantes · ${n.note.outCount} salientes · ${ago(n.note.mtime)}`));
       tip.style.left = `${r.left - b.left + r.width / 2}px`;
       tip.style.top = `${r.top - b.top - 8}px`;
       tip.hidden = false;
@@ -370,36 +370,36 @@ export function renderGraphView(root, data, h) {
   function showInspector(n) {
     const note = n.note;
     const head = el('div', 'gi-head');
-    head.append(el('span', 'eyebrow mono', 'Node inspector'), button('icon-btn', '', clearSelection));
+    head.append(el('span', 'eyebrow mono', 'Inspector del nodo'), button('icon-btn', '', clearSelection));
     head.lastChild.append(icon('close', 15));
-    head.lastChild.setAttribute('aria-label', 'Close inspector');
+    head.lastChild.setAttribute('aria-label', 'Cerrar el inspector');
     const chips = el('div', 'chips');
-    chips.append(el('span', `pill mono ${kindOf(n)}`, { hub: 'Hub', note: 'Note', orphan: 'Orphan', ghost: 'Missing note' }[kindOf(n)]));
+    chips.append(el('span', `pill mono ${kindOf(n)}`, { hub: 'Centro', note: 'Nota', orphan: 'Huérfana', ghost: 'No existe' }[kindOf(n)]));
     for (const t of (note?.tags ?? []).slice(0, 3)) chips.append(el('span', 'tag-chip static mono', `#${t}`));
     const body = el('div', 'gi-body');
     body.append(chips, el('h2', 'gi-title', n.label));
     if (note) {
-      body.append(el('p', 'small muted', `Updated ${ago(note.mtime)} · ${fmtSize(note.size)} · ${folderOf(note.path)}`));
+      body.append(el('p', 'small muted', `Actualizada ${ago(note.mtime)} · ${fmtSize(note.size)} · ${folderOf(note.path)}`));
       if (note.snippet) body.append(el('p', 'gi-excerpt', note.snippet));
       const m = el('div', 'gi-metrics');
-      for (const [k, v] of [['Backlinks', note.inCount], ['Outgoing', note.outCount], ['Tags', note.tags.length]]) {
+      for (const [k, v] of [['Entrantes', note.inCount], ['Salientes', note.outCount], ['Etiquetas', note.tags.length]]) {
         const c = el('div', 'gi-metric');
         c.append(el('span', 'mono small muted', k), el('span', 'gi-num', String(v)));
         m.append(c);
       }
       body.append(m);
     } else {
-      body.append(el('p', 'small muted', `Linked from ${[...new Set(n.from)].length} note(s) but no page with this name exists.`));
+      body.append(el('p', 'small muted', `Enlazada desde ${[...new Set(n.from)].length} nota(s), pero no existe ninguna página con este nombre.`));
     }
     const near = neighbours(n);
     if (near.length) {
       const list = el('div', 'gi-list');
-      list.append(el('span', 'eyebrow mono', `Connected (${near.length})`));
+      list.append(el('span', 'eyebrow mono', `Conectadas (${near.length})`));
       for (const x of near.slice(0, 8)) list.append(button('list-row', x.label, () => select(x)));
       body.append(list);
     }
     const actions = el('div', 'gi-actions');
-    actions.append(n.kind === 'ghost' ? button('btn primary wide', 'Create page', () => h.create(n.label)) : button('btn primary wide', 'Open in editor', () => h.go(n.note.path)));
+    actions.append(n.kind === 'ghost' ? button('btn primary wide', 'Crear página', () => h.create(n.label)) : button('btn primary wide', 'Abrir en el editor', () => h.go(n.note.path)));
     inspector.replaceChildren(head, body, actions);
     inspector.hidden = false;
   }
@@ -451,8 +451,8 @@ export function renderGraphView(root, data, h) {
   const bar = el('div', 'glass graph-bar');
   const filter = el('input', 'graph-filter');
   filter.type = 'search';
-  filter.placeholder = 'Filter nodes in view…';
-  filter.setAttribute('aria-label', 'Filter nodes');
+  filter.placeholder = 'Filtrar nodos…';
+  filter.setAttribute('aria-label', 'Filtrar nodos');
   filter.addEventListener('input', () => {
     const q = filter.value.trim().toLowerCase();
     for (const n of nodes) nodeEls.get(n.id).classList.toggle('dim', !!q && !n.label.toLowerCase().includes(q));
@@ -470,7 +470,7 @@ export function renderGraphView(root, data, h) {
     b.setAttribute('aria-pressed', 'true');
     return b;
   };
-  bar.append(icon('search', 15), filter, toggle('Orphans', 'hide-orphans'), toggle('Unresolved', 'hide-ghosts'));
+  bar.append(icon('search', 15), filter, toggle('Huérfanas', 'hide-orphans'), toggle('Sin resolver', 'hide-ghosts'));
 
   // zoomAt works in screen coordinates, so zoom about the middle of the drawn svg
   const centreZoom = (factor) => {
@@ -479,9 +479,9 @@ export function renderGraphView(root, data, h) {
   };
   const zoom = el('div', 'glass graph-zoom');
   for (const [name, label, fn] of [
-    ['plus', 'Zoom in', () => centreZoom(1.25)],
-    ['minus', 'Zoom out', () => centreZoom(1 / 1.25)],
-    ['center', 'Fit graph', fit],
+    ['plus', 'Acercar', () => centreZoom(1.25)],
+    ['minus', 'Alejar', () => centreZoom(1 / 1.25)],
+    ['center', 'Ajustar el grafo', fit],
   ]) {
     const b = button('icon-btn', '', fn);
     b.append(icon(name, 17));
@@ -498,14 +498,14 @@ export function renderGraphView(root, data, h) {
     return s;
   };
   const legend = el('span', 'legend');
-  for (const [cls, label] of [['hub', 'Hubs'], ['note', 'Notes'], ['orphan', 'Orphans'], ['ghost', 'Missing']]) {
+  for (const [cls, label] of [['hub', 'Centros'], ['note', 'Notas'], ['orphan', 'Huérfanas'], ['ghost', 'No existen']]) {
     const item = el('span', 'legend-item');
     item.append(el('i', `swatch ${cls}`), document.createTextNode(label));
     legend.append(item);
   }
   const noteCount = data.nodes.length;
   const density = noteCount > 1 ? (2 * realEdges) / (noteCount * (noteCount - 1)) : 0;
-  foot.append(stat(noteCount, 'notes'), stat(realEdges, 'connections'), stat(density.toFixed(2), 'density'), legend);
+  foot.append(stat(noteCount, 'notas'), stat(realEdges, 'conexiones'), stat(density.toFixed(2), 'densidad'), legend);
 
   root.append(svg, bar, zoom, tip, inspector, foot);
   fit();

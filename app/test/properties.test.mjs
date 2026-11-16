@@ -103,9 +103,9 @@ test('rows get typed, computed values: formulas using formulas, rollups, created
 test('a formula error stays in its own cell; cycles are caught', () => {
   const schema = [P('A', 'formula', { formula: 'prop("B") + 1' }), P('B', 'formula', { formula: 'prop("A") + 1' }), P('C', 'formula', { formula: 'prop("Missing")' }), P('D', 'formula', { formula: '2 * 2' })];
   const [r] = computeRows([{ path: 'x.md', name: 'x', props: {} }], schema);
-  assert.match(r.errors.A, /depends on itself/);
+  assert.match(r.errors.A, /depende de sí misma/);
   assert.ok(r.errors.B);
-  assert.match(r.errors.C, /There is no property “Missing”/);
+  assert.match(r.errors.C, /No existe la propiedad “Missing”/);
   assert.equal(r.values.D, 4);
 });
 

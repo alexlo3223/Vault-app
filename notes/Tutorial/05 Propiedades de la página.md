@@ -19,9 +19,9 @@ width: full
 ---
 ~~~
 
-- **icon**: un emoji o una imagen que aparece junto al título. Desde el menú, *Icon*.
-- **cover**: la imagen del banner. Desde el menú, *Cover image*.
-- **width**: `full` hace la página ancha. Desde el menú, *Full width*.
+- **icon**: un emoji o una imagen que aparece junto al título. Desde el menú, *Icono*.
+- **cover**: la imagen del banner. Desde el menú, *Imagen de portada*.
+- **width**: `full` hace la página ancha. Desde el menú, *Ancho completo*.
 
 Cualquier otra clave que escribas aquí también aparece en la ficha, y es lo que usan las bases de datos para sus columnas (ver [[07 Propiedades con tipo]]).
 

@@ -10,28 +10,28 @@ En una base, cada columna es una **propiedad** con nombre y tipo. Cada fila (not
 
 ## Añadir una propiedad
 
-En la tabla, pulsa el `+` al final de la cabecera. Escribe el nombre (por ejemplo *Páginas*) y elige el tipo. En la cabecera de una fila, *+ Add a property* hace lo mismo.
+En la tabla, pulsa el `+` al final de la cabecera. Escribe el nombre (por ejemplo *Páginas*) y elige el tipo. En la cabecera de una fila, *+ Añadir propiedad* hace lo mismo.
 
 Tipos disponibles:
 
 | Tipo | Qué guarda | Ejemplo |
 |---|---|---|
-| Text | texto libre | autor |
-| Number | un número | 412 |
-| Select | una opción | Pendiente |
-| Multi-select | varias opciones | Ciencia ficción, Fantasía |
-| Status | una opción con estado | Leyendo |
-| Date | una fecha | 2026-11-16 |
-| Checkbox | sí o no | ✓ |
-| URL, Email, Phone | enlaces | https://… |
-| Relation | filas de otra base | [[Cita de Dune]] |
-| Formula | calculado (ver [[08 Fórmulas]]) | 50 % |
+| Texto | texto libre | autor |
+| Número | un número | 412 |
+| Selección | una opción | Pendiente |
+| Selección múltiple | varias opciones | Ciencia ficción, Fantasía |
+| Estado | una opción con estado | Leyendo |
+| Fecha | una fecha | 2026-11-16 |
+| Casilla | sí o no | ✓ |
+| URL, Email, Teléfono | enlaces | https://… |
+| Relación | filas de otra base | [[Cita de Dune]] |
+| Fórmula | calculado (ver [[08 Fórmulas]]) | 50 % |
 | Rollup | resumen de filas relacionadas | 2 citas |
-| Created time, Last edited time | fechas automáticas | — |
+| Fecha de creación, Última edición | fechas automáticas | — |
 
 ## Opciones y colores
 
-Select, Multi-select y Status tienen opciones con color. Escribe en el campo de búsqueda y pulsa `Enter` para **crear** una opción nueva. Para cambiar nombre, color o borrar una, abre la configuración de la propiedad.
+Selección, Selección múltiple y Estado tienen opciones con color. Escribe en el campo de búsqueda y pulsa `Enter` para **crear** una opción nueva. Para cambiar nombre, color o borrar una, abre la configuración de la propiedad.
 
 ## Configurar una propiedad
 
@@ -46,7 +46,7 @@ Renombrar o borrar una propiedad se aplica a **todas las filas**, y a las fórmu
 
 ## Editar valores
 
-Haz clic en la celda (o en el valor de la cabecera de la fila) para editarla. Los checkbox cambian al hacer clic.
+Haz clic en la celda (o en el valor de la cabecera de la fila) para editarla. Las casillas cambian al hacer clic.
 
 También se puede **sin ratón**: con el foco en una celda, `Enter` abre su editor, `Enter` guarda, `Tab` guarda y cierra y `Esc` cancela. Tras guardar, el foco vuelve a la misma celda. En un campo de texto, `Shift+Enter` añade una línea nueva.
 
@@ -59,7 +59,7 @@ Escribe la fecha como quieras:
 - con hora, si quieres: `16/11/2026 14:30`
 - `hoy` pone la fecha de hoy
 
-Mientras escribes, el panel te dice cómo la ha entendido (*Se guardará: 16 Nov 2026*). Solo se guardan fechas completas y reales: `30/02/2026` o `16/11/26` (año de dos cifras) no se guardan y el panel te lo explica. Los botones **Hoy**, **Calendario** y **Borrar** hacen lo que dicen. En el archivo la fecha queda como `2026-11-16` (o `2026-11-16T14:30`), que Obsidian también entiende.
+Mientras escribes, el panel te dice cómo la ha entendido (*Se guardará: 16 nov 2026*). Solo se guardan fechas completas y reales: `30/02/2026` o `16/11/26` (año de dos cifras) no se guardan y el panel te lo explica. Los botones **Hoy**, **Calendario** y **Borrar** hacen lo que dicen. En el archivo la fecha queda como `2026-11-16` (o `2026-11-16T14:30`), que Obsidian también entiende.
 
 Si un archivo tiene una fecha o un número que no se puede leer (por ejemplo `Fecha: el viernes`), Vault lo muestra tal cual, subrayado, para que lo corrijas.
 

@@ -9,25 +9,25 @@ cover_zoom: 1.4
 
 ## Columnas
 
-Para poner bloques lado a lado, **arrastra un bloque hasta el borde de otro**: se colocan en columnas. También puedes elegir *2 columns*, *3 columns* o *3 columns, narrow · wide · narrow* desde el menú `/`.
+Para poner bloques lado a lado, **arrastra un bloque hasta el borde de otro**: se colocan en columnas. También puedes elegir *2 columnas*, *3 columnas* o *3 columnas, estrecha · ancha · estrecha* desde el menú `/`.
 
 Cada columna puede tener su propio ancho.
 
 ## Imágenes
 
-Inserta *Image* desde el menú y elige un archivo. Se copia a la carpeta `attachments` y se escribe como `![[nombre.png]]`, el mismo formato que Obsidian.
+Inserta *Imagen* desde el menú y elige un archivo. Se copia a la carpeta `attachments` y se escribe como `![[nombre.png]]`, el mismo formato que Obsidian.
 
 ## Vídeo, audio y archivos
 
-*Video*, *Audio* y *File* suben el archivo a `attachments` y lo muestran con su reproductor o enlace.
+*Vídeo*, *Audio* y *Archivo* suben el archivo a `attachments` y lo muestran con su reproductor o enlace.
 
 ## Marcadores web
 
-*Web bookmark* crea una tarjeta con el título que escribas y el dominio. No descarga nada de la web.
+*Marcador web* crea una tarjeta con el título que escribas y el dominio. No descarga nada de la web.
 
 ## Incrustaciones
 
-*Embed or video link* muestra una página web dentro de la nota. Los enlaces de YouTube se convierten solos a su versión incrustable. Solo funcionan con `https://`, y las páginas que prohíben mostrarse dentro de otra no aparecen.
+*Incrustación o enlace de vídeo* muestra una página web dentro de la nota. Los enlaces de YouTube se convierten solos a su versión incrustable. Solo funcionan con `https://`, y las páginas que prohíben mostrarse dentro de otra no aparecen.
 
 Así se ve en el archivo:
 

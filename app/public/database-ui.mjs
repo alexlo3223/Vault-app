@@ -11,9 +11,9 @@ import { addPropertyMenu, editValue, formulaEditor, onPopoverClose, popoverOpen,
 const enc = encodeURIComponent;
 const SVG = 'http://www.w3.org/2000/svg';
 const COLORS = ['#ffc857', '#7ab8ff', '#6fd39a', '#ff6b6b', '#c79bff', '#ff9f5a', '#8ee3e3'];
-const VIEW_LABEL = { table: 'Table', board: 'Board', gallery: 'Gallery', list: 'List', number: 'Number', donut: 'Donut' };
+const VIEW_LABEL = { table: 'Tabla', board: 'Tablero', gallery: 'Galería', list: 'Lista', number: 'Número', donut: 'Donut' };
 const VIEW_ICON = { table: 'table', board: 'board', gallery: 'grid', list: 'list', number: 'hash', donut: 'donut' };
-const AGG_LABEL = { count: 'Count', sum: 'Sum', avg: 'Average', min: 'Minimum', max: 'Maximum' };
+const AGG_LABEL = { count: 'Recuento', sum: 'Suma', avg: 'Media', min: 'Mínimo', max: 'Máximo' };
 
 const el = (tag, cls = '', text = '') => {
   const n = document.createElement(tag);
@@ -94,7 +94,7 @@ export function databaseEl(b, ctx) {
   if (cfg.page) return embedDb(b, cfg, ctx);
   const box = el('div', 'db');
   const head = el('div', 'db-head');
-  head.append(el('span', 'eyebrow mono', `Database · ${cfg.source || 'no source yet'}`));
+  head.append(el('span', 'eyebrow mono', `Base de datos · ${cfg.source || 'sin carpeta de origen'}`));
   const current = activeIndex(b, cfg);
   cfg.views.forEach((v, i) => {
     const tab = button(`db-tab${i === current ? ' active' : ''}`, v.name || VIEW_LABEL[v.view], () => {
@@ -105,26 +105,26 @@ export function databaseEl(b, ctx) {
     head.append(tab);
   });
   head.append(
-    iconButton('plus', 'Add a view', () => {
+    iconButton('plus', 'Añadir vista', () => {
       cfg.views.push(newView('table'));
       b.activeView = cfg.views.length - 1;
       save(b, cfg, ctx);
     }),
-    iconButton('settings', 'View settings', () => {
+    iconButton('settings', 'Ajustes de la vista', () => {
       b.settingsOpen = !b.settingsOpen;
       ctx.rerender();
     }),
-    button('db-tab', 'Edit source', () => ctx.editSource(b)),
+    button('db-tab', 'Editar código', () => ctx.editSource(b)),
   );
   box.append(head);
 
   const body = el('div', 'db-body');
   box.append(body);
   if (!cfg.source) {
-    body.append(el('p', 'db-empty', 'Set “source:” to the folder with the notes (Edit source).'));
+    body.append(el('p', 'db-empty', 'Pon en “source:” la carpeta que tiene las notas (Editar código).'));
     return box;
   }
-  body.append(el('p', 'db-empty', 'Loading…'));
+  body.append(el('p', 'db-empty', 'Cargando…'));
   // The schema is this block's own: edit it in place. Each edit starts from the block's current text, so a menu
   // opened before an earlier change never writes back an old schema.
   const owner = {
@@ -147,18 +147,18 @@ export function databaseEl(b, ctx) {
 function embedDb(b, cfg, ctx) {
   const box = el('div', 'db');
   const head = el('div', 'db-head');
-  head.append(el('span', 'eyebrow mono', `Database · ${cfg.page}`));
-  const open = el('a', 'db-tab', 'Open database');
+  head.append(el('span', 'eyebrow mono', `Base de datos · ${cfg.page}`));
+  const open = el('a', 'db-tab', 'Abrir base de datos');
   open.href = `#/${enc(`${cfg.page}.md`)}`;
   head.append(open);
   box.append(head);
-  const body = el('div', 'db-body', 'Loading…');
+  const body = el('div', 'db-body', 'Cargando…');
   box.append(body);
   ctx
     .api('GET', `/api/page?path=${enc(`${cfg.page}.md`)}`)
     .then(async (page) => {
       const text = extractDatabase(page.content);
-      if (text === null) return body.replaceChildren(el('p', 'db-empty', 'This page has no database yet. Open it to add one.'));
+      if (text === null) return body.replaceChildren(el('p', 'db-empty', 'Esta página aún no tiene base de datos. Ábrela para añadir una.'));
       const target = parseDb(text);
       // `use:` names the views to show ("use: Leyendo, Leídos"): one name pins the embed to that view (no tabs), several
       // give tabs for only those; without it the embed offers every view as tabs.
@@ -175,7 +175,7 @@ function embedDb(b, cfg, ctx) {
           head.append(tab);
         }
       }
-      if (!target.source) return body.replaceChildren(el('p', 'db-empty', 'The database on that page has no source folder.'));
+      if (!target.source) return body.replaceChildren(el('p', 'db-empty', 'La base de datos de esa página no tiene carpeta de origen.'));
       const owner = {
         cfg: target,
         edit: (fn) => ctx.updateSchema(`${cfg.page}.md`, fn).then(ctx.rerender, (e) => ctx.setStatus(e.message)),
@@ -206,10 +206,10 @@ function paint(body, b, cfg, i, data, ctx, { settings = true, owner }) {
   const o = { ctx, act, owner, data, props, view, viewIndex: i, handlers: schemaHandlers(owner, data, ctx, i), refocus: askFocus };
   const parts = [];
   if (settings && b.settingsOpen) parts.push(settingsEl(b, cfg, i, props.map((p) => p.name), ctx));
-  if (!rows.length && view.view !== 'table') parts.push(el('p', 'db-empty', 'No notes in this folder yet. Use “+ New” to add one.'));
-  else if (rows.length && !shown.length) parts.push(el('p', 'db-empty', 'No notes match the filters of this view.'));
+  if (!rows.length && view.view !== 'table') parts.push(el('p', 'db-empty', 'Aún no hay notas en esta carpeta. Usa “+ Nueva” para añadir una.'));
+  else if (rows.length && !shown.length) parts.push(el('p', 'db-empty', 'Ninguna nota cumple los filtros de esta vista.'));
   if (shown.length || view.view === 'table') parts.push(viewContent(view, shown, props, o));
-  parts.push(button('db-tab db-new', '+ New', () => ctx.createRow(cfg.source).catch((e) => ctx.setStatus(e.message))));
+  parts.push(button('db-tab db-new', '+ Nueva', () => ctx.createRow(cfg.source).catch((e) => ctx.setStatus(e.message))));
   body.replaceChildren(...parts);
   focusPending();
 }
@@ -345,14 +345,14 @@ function cell(tag, r, prop, o, opts = {}) {
 
 function propHeader(prop, o) {
   const th = el('th');
-  const btn = button('db-th', '', () => propertyMenu(btn, prop, o.handlers(prop)), `${prop.name} · click for options`);
+  const btn = button('db-th', '', () => propertyMenu(btn, prop, o.handlers(prop)), `${prop.name} · clic para ver opciones`);
   btn.append(typeIcon(prop.type, 13), el('span', '', prop.name));
   th.append(btn);
   return th;
 }
 
 function addPropButton(o) {
-  const btn = iconButton('plus', 'Add a property', () =>
+  const btn = iconButton('plus', 'Añadir propiedad', () =>
     addPropertyMenu(btn, {
       names: o.props.map((p) => p.name),
       create: (name, type) =>
@@ -371,7 +371,7 @@ function tableView(view, shown, props, o) {
   const table = el('table', 'db-table');
   const head = el('tr');
   const nameTh = el('th');
-  nameTh.append(el('span', 'db-th db-th-static', 'Name'));
+  nameTh.append(el('span', 'db-th db-th-static', 'Nombre'));
   const plus = el('th', 'db-th-add');
   plus.append(addPropButton(o));
   head.append(nameTh, ...cols.map((p) => propHeader(p, o)), plus);
@@ -394,7 +394,7 @@ function wrapScroll(node) {
 }
 
 function boardView(view, shown, props, o) {
-  if (!view.group) return el('p', 'db-empty', 'Choose a “Group by” property in the settings (⚙).');
+  if (!view.group) return el('p', 'db-empty', 'Elige una propiedad en “Agrupar por”, en los ajustes (⚙).');
   const prop = props.find((p) => same(p.name, view.group)) ?? newProp(view.group);
   const groups = groupRows(shown, view.group);
   // Columns follow the option order of a select/status property; values without an option come after.
@@ -407,16 +407,16 @@ function boardView(view, shown, props, o) {
     const col = el('div', 'db-col');
     const colHead = el('div', 'db-col-head');
     // Option groups show their coloured chip; other values are plain text.
-    const label = !value ? el('span', '', 'No value') : prop.options?.length ? valueEl({ ...prop, type: prop.type === 'status' ? 'status' : 'select' }, value) : el('span', '', value);
+    const label = !value ? el('span', '', 'Sin valor') : prop.options?.length ? valueEl({ ...prop, type: prop.type === 'status' ? 'status' : 'select' }, value) : el('span', '', value);
     colHead.append(label, el('span', 'db-col-count', String(items.length)));
     col.append(colHead);
     for (const r of items) {
       const card = el('div', 'db-card');
       const sel = select(
-        keys.map((v) => [v, v || 'No value']),
+        keys.map((v) => [v, v || 'Sin valor']),
         value,
         (x) => o.act(queue(() => o.ctx.setProp(r.path, prop.name, writeValue(prop.type === 'multi-select' ? { type: 'text' } : prop, x)))),
-        `Move ${r.name} to`,
+        `Mover ${r.name} a`,
       );
       card.append(link(r));
       for (const p of visibleProps({ ...view, view: 'board', show: view.show }, props).filter((p) => !same(p.name, prop.name))) {
@@ -503,15 +503,15 @@ function numberView(view, shown) {
   const box = el('div', 'db-number');
   box.append(
     el('div', 'db-number-value', Number.isInteger(value) ? value.toLocaleString() : value.toFixed(1)),
-    el('div', 'db-number-label', `${AGG_LABEL[agg]}${view.value && agg !== 'count' ? ` of ${view.value}` : ' of notes'}`),
+    el('div', 'db-number-label', `${AGG_LABEL[agg]}${view.value && agg !== 'count' ? ` de ${view.value}` : ' de notas'}`),
   );
   return box;
 }
 
 function donutView(view, shown) {
-  if (!view.group) return el('p', 'db-empty', 'Choose a “Group by” property in the settings (⚙).');
+  if (!view.group) return el('p', 'db-empty', 'Elige una propiedad en “Agrupar por”, en los ajustes (⚙).');
   const agg = AGGS.includes(view.agg) ? view.agg : 'count';
-  const parts = [...groupRows(shown, view.group)].map(([k, items]) => [k || 'No value', aggregate(items, view.value, agg)]).filter(([, n]) => n > 0);
+  const parts = [...groupRows(shown, view.group)].map(([k, items]) => [k || 'Sin valor', aggregate(items, view.value, agg)]).filter(([, n]) => n > 0);
   const total = parts.reduce((s, [, n]) => s + n, 0);
   const box = el('div', 'db-donut');
   const svg = document.createElementNS(SVG, 'svg');
@@ -547,18 +547,18 @@ function settingsEl(b, cfg, i, keys, ctx) {
   const v = cfg.views[i];
   const save_ = () => save(b, cfg, ctx);
   const panel = el('div', 'db-settings');
-  const keyOpts = (none) => [...(none ? [['', 'None']] : []), ...keys.map((k) => [k, k])];
+  const keyOpts = (none) => [...(none ? [['', 'Ninguna']] : []), ...keys.map((k) => [k, k])];
 
   const name = el('input', 'db-input');
   name.value = v.name;
   name.placeholder = VIEW_LABEL[v.view];
-  name.setAttribute('aria-label', 'View name');
+  name.setAttribute('aria-label', 'Nombre de la vista');
   name.addEventListener('change', () => {
     v.name = name.value.trim();
     save_();
   });
-  panel.append(field('Name', name));
-  panel.append(field('Layout', select(VIEW_TYPES.map((t) => [t, VIEW_LABEL[t]]), v.view, (x) => { v.view = x; save_(); }, 'Layout')));
+  panel.append(field('Nombre', name));
+  panel.append(field('Tipo de vista', select(VIEW_TYPES.map((t) => [t, VIEW_LABEL[t]]), v.view, (x) => { v.view = x; save_(); }, 'Tipo de vista')));
 
   if (['table', 'list', 'gallery', 'board'].includes(v.view)) {
     const current = visibleProps(v, keys.map((k) => ({ name: k }))).map((p) => p.name);
@@ -576,26 +576,26 @@ function settingsEl(b, cfg, i, keys, ctx) {
       lab.append(box, el('span', '', k));
       props.append(lab);
     }
-    panel.append(el('div', 'db-set-label', 'Shown properties'), props);
+    panel.append(el('div', 'db-set-label', 'Propiedades visibles'), props);
   }
 
-  panel.append(el('div', 'db-set-label', 'Filters'));
+  panel.append(el('div', 'db-set-label', 'Filtros'));
   v.filter.forEach((f, n) => {
     const row = el('div', 'db-filter');
     const valueInput = el('input', 'db-input');
     valueInput.value = f.value;
-    valueInput.placeholder = 'value';
-    valueInput.setAttribute('aria-label', 'Filter value');
+    valueInput.placeholder = 'valor';
+    valueInput.setAttribute('aria-label', 'Valor del filtro');
     valueInput.addEventListener('change', () => {
       f.value = valueInput.value.trim();
       save_();
     });
     const noValue = f.op === 'empty' || f.op === '!empty';
     row.append(
-      select(keyOpts(false), f.key, (x) => { f.key = x; save_(); }, 'Filter property'),
-      select(OPS.map((op) => [op, op]), f.op, (x) => { f.op = x; save_(); }, 'Filter operator'),
+      select(keyOpts(false), f.key, (x) => { f.key = x; save_(); }, 'Propiedad del filtro'),
+      select(OPS.map((op) => [op, op]), f.op, (x) => { f.op = x; save_(); }, 'Operador del filtro'),
       noValue ? el('span') : valueInput,
-      iconButton('trash', 'Remove filter', () => {
+      iconButton('trash', 'Quitar filtro', () => {
         v.filter.splice(n, 1);
         save_();
       }),
@@ -603,41 +603,41 @@ function settingsEl(b, cfg, i, keys, ctx) {
     panel.append(row);
   });
   if (keys.length) {
-    panel.append(button('db-tab', 'Add filter', () => {
+    panel.append(button('db-tab', 'Añadir filtro', () => {
       v.filter.push({ key: keys[0], op: '=', value: '' });
       save_();
     }));
   }
 
   const sort = parseSort(v.sort);
-  panel.append(field('Sort', select([['', 'None'], ['name', 'Name'], ...keys.map((k) => [k, k])], sort.key, (x) => {
+  panel.append(field('Ordenar', select([['', 'Ninguno'], ['name', 'Nombre'], ...keys.map((k) => [k, k])], sort.key, (x) => {
     v.sort = x ? `${x} ${sort.dir}` : '';
     save_();
-  }, 'Sort property')));
+  }, 'Propiedad para ordenar')));
   if (v.sort) {
-    panel.append(field('Order', select([['asc', 'Ascending'], ['desc', 'Descending']], sort.dir, (x) => {
+    panel.append(field('Orden', select([['asc', 'Ascendente'], ['desc', 'Descendente']], sort.dir, (x) => {
       v.sort = `${sort.key} ${x}`;
       save_();
-    }, 'Sort order')));
+    }, 'Sentido del orden')));
   }
 
   if (['board', 'donut'].includes(v.view)) {
-    panel.append(field('Group by', select(keyOpts(true), v.group, (x) => { v.group = x; save_(); }, 'Group by')));
+    panel.append(field('Agrupar por', select(keyOpts(true), v.group, (x) => { v.group = x; save_(); }, 'Agrupar por')));
   }
   if (['number', 'donut'].includes(v.view)) {
-    panel.append(field('Value', select(keyOpts(true), v.value, (x) => { v.value = x; save_(); }, 'Value property')));
-    panel.append(field('Calculate', select(AGGS.map((a) => [a, AGG_LABEL[a]]), v.agg || 'count', (x) => { v.agg = x; save_(); }, 'Calculation')));
+    panel.append(field('Valor', select(keyOpts(true), v.value, (x) => { v.value = x; save_(); }, 'Propiedad del valor')));
+    panel.append(field('Calcular', select(AGGS.map((a) => [a, AGG_LABEL[a]]), v.agg || 'count', (x) => { v.agg = x; save_(); }, 'Cálculo')));
   }
   if (v.view === 'gallery') {
-    const previews = [['auto', 'Automatic'], ['cover', 'Cover property'], ['image', 'First image in note'], ['none', 'No image'], ...keys.map((k) => [`property:${k}`, `Property: ${k}`])];
-    panel.append(field('Image', select(previews, v.preview || 'auto', (x) => { v.preview = x; save_(); }, 'Card image')));
-    panel.append(field('Size', select([['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], v.size || 'medium', (x) => { v.size = x; save_(); }, 'Card size')));
-    panel.append(field('Fit', select([['crop', 'Crop to fill'], ['fit', 'Fit whole picture']], v.fit || 'crop', (x) => { v.fit = x; save_(); }, 'Image fit')));
+    const previews = [['auto', 'Automática'], ['cover', 'Propiedad cover'], ['image', 'Primera imagen de la nota'], ['none', 'Sin imagen'], ...keys.map((k) => [`property:${k}`, `Propiedad: ${k}`])];
+    panel.append(field('Imagen', select(previews, v.preview || 'auto', (x) => { v.preview = x; save_(); }, 'Imagen de la tarjeta')));
+    panel.append(field('Tamaño', select([['small', 'Pequeño'], ['medium', 'Mediano'], ['large', 'Grande']], v.size || 'medium', (x) => { v.size = x; save_(); }, 'Tamaño de la tarjeta')));
+    panel.append(field('Encaje', select([['crop', 'Recortar para llenar'], ['fit', 'Imagen entera']], v.fit || 'crop', (x) => { v.fit = x; save_(); }, 'Encaje de la imagen')));
   }
 
   const actions = el('div', 'db-set-actions');
   actions.append(
-    button('db-tab', 'Duplicate view', () => {
+    button('db-tab', 'Duplicar vista', () => {
       cfg.views.splice(i + 1, 0, { ...v, filter: v.filter.map((f) => ({ ...f })), show: [...v.show] });
       b.activeView = i + 1;
       save_();
@@ -645,7 +645,7 @@ function settingsEl(b, cfg, i, keys, ctx) {
   );
   if (cfg.views.length > 1) {
     actions.append(
-      button('db-tab', 'Delete view', () => {
+      button('db-tab', 'Borrar vista', () => {
         cfg.views.splice(i, 1);
         b.activeView = Math.max(0, i - 1);
         save_();

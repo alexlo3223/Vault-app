@@ -3,11 +3,13 @@
 // Listens on 127.0.0.1 only; every path from the browser is checked before it touches the disk.
 // shortcut: the note index is rebuilt on every tree/graph/search request; cache it if a large vault gets slow.
 import http from 'node:http';
+import { createReadStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, posix, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildIndex, search } from './lib/search.mjs';
-import { buildLinkGraph, makeResolver } from './lib/links.mjs';
+import { buildLinkGraph, makeResolver, rewriteLinks } from './lib/links.mjs';
 import { parseProps, renameProp } from './public/graph.mjs';
 import { validPropName } from './public/properties.mjs';
 import { extractDatabase, parseDb } from './public/database.mjs';
@@ -75,27 +77,27 @@ function inVault(root, rel, lastStem) {
       /[\\:*?"<>|\u0000-\u001f]/.test(part) ||
       RESERVED.test(stem.split('.')[0])
     ) {
-      throw new HttpError(400, `invalid name: "${part}"`);
+      throw new HttpError(400, `nombre no válido: "${part}"`);
     }
   });
   const full = resolve(root, ...parts);
-  if (!full.startsWith(root + sep)) throw new HttpError(400, 'path escapes the vault');
+  if (!full.startsWith(root + sep)) throw new HttpError(400, 'la ruta se sale del vault');
   return full;
 }
 
 export function notePath(root, rel) {
-  if (typeof rel !== 'string' || !rel.endsWith('.md') || rel.length > 400) throw new HttpError(400, 'path must be a .md file');
+  if (typeof rel !== 'string' || !rel.endsWith('.md') || rel.length > 400) throw new HttpError(400, 'la ruta debe ser un archivo .md');
   return inVault(root, rel, (p) => p.slice(0, -3));
 }
 
 export function folderPath(root, rel) {
-  if (typeof rel !== 'string' || !rel || rel.length > 400) throw new HttpError(400, 'invalid folder');
+  if (typeof rel !== 'string' || !rel || rel.length > 400) throw new HttpError(400, 'carpeta no válida');
   return inVault(root, rel, (p) => p);
 }
 
 export function assetPath(root, rel) {
   if (typeof rel !== 'string' || !MEDIA_TYPES[extOf(rel)] || rel.length > 400) {
-    throw new HttpError(400, 'this file type is not supported');
+    throw new HttpError(400, 'este tipo de archivo no se admite');
   }
   return inVault(root, rel, (p) => p.slice(0, p.lastIndexOf('.')));
 }
@@ -241,7 +243,7 @@ async function readBody(req, max) {
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > max) throw new HttpError(413, 'request too large');
+    if (size > max) throw new HttpError(413, 'la petición es demasiado grande');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -249,16 +251,16 @@ async function readBody(req, max) {
 
 async function readJson(req) {
   if (!(req.headers['content-type'] ?? '').startsWith('application/json')) {
-    throw new HttpError(415, 'expected application/json');
+    throw new HttpError(415, 'se esperaba application/json');
   }
   const raw = await readBody(req, MAX_BODY);
   let body;
   try {
     body = JSON.parse(raw.toString('utf8'));
   } catch {
-    throw new HttpError(400, 'invalid JSON');
+    throw new HttpError(400, 'JSON no válido');
   }
-  if (!body || typeof body !== 'object') throw new HttpError(400, 'expected a JSON object');
+  if (!body || typeof body !== 'object') throw new HttpError(400, 'se esperaba un objeto JSON');
   return body;
 }
 
@@ -303,8 +305,8 @@ async function folderRows(root, folder) {
 
 // Renames a property in every row of a database (or removes it when `to` is empty), keeping the rest of each note.
 async function renameRowsProp(root, folder, from, to) {
-  if (typeof from !== 'string' || !from || typeof to !== 'string') throw new HttpError(400, 'from and to must be text');
-  if (to && !validPropName(to)) throw new HttpError(400, 'that property name is not allowed');
+  if (typeof from !== 'string' || !from || typeof to !== 'string') throw new HttpError(400, 'from y to deben ser texto');
+  if (to && !validPropName(to)) throw new HttpError(400, 'ese nombre de propiedad no está permitido');
   let changed = 0;
   for (const d of await rowDocs(root, folder)) {
     const full = notePath(root, d.path);
@@ -334,7 +336,7 @@ async function findAsset(root, link, from) {
   }
   const name = posix.basename(link).toLowerCase();
   const hit = (await walkVault(root)).files.filter((f) => posix.basename(f).toLowerCase() === name).sort((a, b) => a.length - b.length)[0];
-  if (!hit) throw new HttpError(404, 'file not found');
+  if (!hit) throw new HttpError(404, 'no se encuentra el archivo');
   return assetPath(root, hit);
 }
 
@@ -343,11 +345,11 @@ async function moveFolder(root, fromRel, toRel) {
   const to = folderPath(root, toRel);
   if (from === to) return { path: toRel };
   const caseOnly = from.toLowerCase() === to.toLowerCase();
-  if (!(await isDir(from))) throw new HttpError(404, 'folder not found');
-  if ((to + sep).startsWith(from + sep)) throw new HttpError(400, 'cannot move a folder inside itself');
+  if (!(await isDir(from))) throw new HttpError(404, 'no se encuentra la carpeta');
+  if ((to + sep).startsWith(from + sep)) throw new HttpError(400, 'no se puede mover una carpeta dentro de sí misma');
   const page = await statOrNull(`${from}.md`);
   if (!caseOnly && ((await statOrNull(to)) || (page && (await statOrNull(`${to}.md`))))) {
-    throw new HttpError(409, 'a page or folder with that name already exists');
+    throw new HttpError(409, 'ya existe una página o carpeta con ese nombre');
   }
   await mkdir(dirname(to), { recursive: true });
   await rename(from, to);
@@ -355,12 +357,38 @@ async function moveFolder(root, fromRel, toRel) {
   return { path: toRel };
 }
 
+// After a rename, rewrites the [[links]] that would no longer find their note, and says which notes it changed.
+// `before` is the index from before the move; fromKey and toKey are the old and new path without ".md"
+// (a page takes its sub-pages along, a folder its page).
+// shortcut: only [[wikilinks]] are rewritten, not Markdown links nor the page:/source: of database blocks; add them if renames break those.
+async function relink(root, before, fromKey, toKey) {
+  if (fromKey === toKey) return [];
+  const moved = (p) => (p === `${fromKey}.md` || p.startsWith(`${fromKey}/`) ? toKey + p.slice(fromKey.length) : p);
+  const was = makeResolver(before);
+  const now = makeResolver(await buildIndex(root));
+  const relinked = [];
+  for (const d of before) {
+    const path = moved(d.path);
+    const next = rewriteLinks(d.content, (lp) => {
+      const old = was(lp, d.path);
+      const dest = old && moved(old);
+      if (!dest || now(lp, path) === dest) return null; // still finds its note
+      const name = posix.basename(dest, '.md');
+      return !lp.includes('/') && now(name, path) === dest ? name : dest.slice(0, -3);
+    });
+    if (next === d.content) continue;
+    await atomicWrite(notePath(root, path), next);
+    relinked.push(path);
+  }
+  return relinked;
+}
+
 async function handle(req, res, root) {
   const host = req.headers.host ?? '';
   // Blocks DNS-rebinding: a page on another site cannot reach this server under its own host name.
-  if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) throw new HttpError(403, 'forbidden host');
+  if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) throw new HttpError(403, 'host no permitido');
   if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== `http://${host}`) {
-    throw new HttpError(403, 'forbidden origin');
+    throw new HttpError(403, 'origen no permitido');
   }
   const url = new URL(req.url, `http://${host}`);
   const q = (name) => url.searchParams.get(name) ?? '';
@@ -386,19 +414,19 @@ async function handle(req, res, root) {
     case 'GET /api/page': {
       const full = notePath(root, q('path'));
       const info = await statOrNull(full);
-      if (!info?.isFile()) throw new HttpError(404, 'page not found');
+      if (!info?.isFile()) throw new HttpError(404, 'no se encuentra la página');
       return send(res, 200, { path: q('path'), content: await readFile(full, 'utf8'), mtime: info.mtimeMs });
     }
 
     case 'PUT /api/page': {
       const body = await readJson(req);
-      if (typeof body.content !== 'string') throw new HttpError(400, 'content must be a string');
+      if (typeof body.content !== 'string') throw new HttpError(400, 'content debe ser texto');
       const full = notePath(root, body.path);
       const current = await statOrNull(full);
       // Refuse to overwrite a file that changed on disk since the editor loaded it (Obsidian, another tab).
       const stale = current ? current.mtimeMs !== body.baseMtime : body.baseMtime != null;
       if (stale && body.force !== true) {
-        throw new HttpError(409, current ? 'page changed on disk' : 'page was removed on disk', {
+        throw new HttpError(409, current ? 'la página cambió en el disco' : 'la página se borró del disco', {
           mtime: current?.mtimeMs ?? null,
         });
       }
@@ -409,41 +437,45 @@ async function handle(req, res, root) {
     case 'POST /api/folder': {
       const body = await readJson(req);
       const full = folderPath(root, body.path);
-      if (await statOrNull(full)) throw new HttpError(409, 'a page or folder with that name already exists');
+      if (await statOrNull(full)) throw new HttpError(409, 'ya existe una página o carpeta con ese nombre');
       await mkdir(full, { recursive: true });
       return send(res, 200, { path: body.path });
     }
 
     case 'POST /api/rename': {
       const body = await readJson(req);
-      if (body.folder === true) return send(res, 200, await moveFolder(root, body.from, body.to));
+      const before = await buildIndex(root);
+      if (body.folder === true) {
+        const moved = await moveFolder(root, body.from, body.to);
+        return send(res, 200, { ...moved, relinked: await relink(root, before, body.from, body.to) });
+      }
       const from = notePath(root, body.from);
       const to = notePath(root, body.to);
       if (from === to) return send(res, 200, { path: body.to });
       const caseOnly = from.toLowerCase() === to.toLowerCase();
-      if (!(await statOrNull(from))) throw new HttpError(404, 'page not found');
-      if (!caseOnly && (await statOrNull(to))) throw new HttpError(409, 'a page with that name already exists');
+      if (!(await statOrNull(from))) throw new HttpError(404, 'no se encuentra la página');
+      if (!caseOnly && (await statOrNull(to))) throw new HttpError(409, 'ya existe una página con ese nombre');
       const fromDir = from.slice(0, -3);
       const toDir = to.slice(0, -3);
       const moveDir = await isDir(fromDir);
-      if (moveDir && (toDir + sep).startsWith(fromDir + sep)) throw new HttpError(400, 'cannot move a page inside itself');
-      if (moveDir && !caseOnly && (await statOrNull(toDir))) throw new HttpError(409, 'a folder with that name already exists');
+      if (moveDir && (toDir + sep).startsWith(fromDir + sep)) throw new HttpError(400, 'no se puede mover una página dentro de sí misma');
+      if (moveDir && !caseOnly && (await statOrNull(toDir))) throw new HttpError(409, 'ya existe una carpeta con ese nombre');
       await mkdir(dirname(to), { recursive: true });
       await rename(from, to);
       if (moveDir) await rename(fromDir, toDir);
-      return send(res, 200, { path: body.to });
+      return send(res, 200, { path: body.to, relinked: await relink(root, before, body.from.slice(0, -3), body.to.slice(0, -3)) });
     }
 
     case 'POST /api/delete': {
       const body = await readJson(req);
       if (body.folder === true) {
         const dir = folderPath(root, body.path);
-        if (!(await isDir(dir))) throw new HttpError(404, 'folder not found');
+        if (!(await isDir(dir))) throw new HttpError(404, 'no se encuentra la carpeta');
         await moveToTrash(root, dir);
         return send(res, 200, { ok: true });
       }
       const full = notePath(root, body.path);
-      if (!(await statOrNull(full))) throw new HttpError(404, 'page not found');
+      if (!(await statOrNull(full))) throw new HttpError(404, 'no se encuentra la página');
       await moveToTrash(root, full);
       if (await isDir(full.slice(0, -3))) await moveToTrash(root, full.slice(0, -3));
       return send(res, 200, { ok: true });
@@ -461,7 +493,7 @@ async function handle(req, res, root) {
       // Plain-text and form bodies are what a cross-site form can send without a preflight; refuse them here.
       // The Origin check above already blocks other sites.
       const type = req.headers['content-type'] ?? '';
-      if (!type || /^(text\/plain|application\/x-www-form-urlencoded|multipart\/form-data)/.test(type)) throw new HttpError(415, 'expected a file');
+      if (!type || /^(text\/plain|application\/x-www-form-urlencoded|multipart\/form-data)/.test(type)) throw new HttpError(415, 'se esperaba un archivo');
       const wanted = q('name').replace(/[\\/:*?"<>|#^[\]\u0000-\u001f]/g, '-').trim();
       assetPath(root, `${ATTACHMENTS}/${wanted}`);
       const data = await readBody(req, MAX_UPLOAD);
@@ -476,15 +508,35 @@ async function handle(req, res, root) {
       const full = await findAsset(root, q('link'), q('from'));
       const mime = MEDIA_TYPES[extOf(full)];
       const media = /^(image|video|audio)\//.test(mime);
-      res.writeHead(200, {
+      const { size } = await stat(full);
+      const headers = {
         'content-type': mime,
         // Documents download instead of opening inside the app.
         ...(media ? {} : { 'content-disposition': 'attachment' }),
         'content-security-policy': "sandbox; default-src 'none'; media-src 'self'",
         'cache-control': 'no-cache',
         'x-content-type-options': 'nosniff',
-      });
-      return res.end(await readFile(full));
+        'accept-ranges': 'bytes',
+      };
+      // One byte range, which is what a player asks for when it seeks; any other Range header gets the whole file.
+      const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
+      let start = 0;
+      let end = size - 1;
+      let status = 200;
+      if (range && (range[1] || range[2])) {
+        start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2])); // "-N" is the last N bytes
+        if (range[1] && range[2]) end = Math.min(Number(range[2]), size - 1);
+        if (start > end) {
+          res.writeHead(416, { 'content-range': `bytes */${size}` });
+          return res.end();
+        }
+        status = 206;
+        headers['content-range'] = `bytes ${start}-${end}/${size}`;
+      }
+      res.writeHead(status, { ...headers, 'content-length': end - start + 1 });
+      if (!size) return res.end();
+      // Sent in pieces, never the whole file in memory. A reader that goes away mid-file is not an error.
+      return pipeline(createReadStream(full, { start, end }), res).catch(() => res.destroy());
     }
 
     case 'GET /api/db':
@@ -492,7 +544,7 @@ async function handle(req, res, root) {
 
     case 'POST /api/db/prop': {
       const body = await readJson(req);
-      if (typeof body.folder !== 'string' || !body.folder) throw new HttpError(400, 'folder is required');
+      if (typeof body.folder !== 'string' || !body.folder) throw new HttpError(400, 'falta la carpeta');
       return send(res, 200, await renameRowsProp(root, body.folder, body.from, body.to ?? ''));
     }
 
@@ -513,7 +565,7 @@ async function handle(req, res, root) {
     }
 
     default:
-      throw new HttpError(404, 'not found');
+      throw new HttpError(404, 'no encontrado');
   }
 }
 
@@ -524,7 +576,7 @@ export function createApp({ root }) {
       const status = err instanceof HttpError ? err.status : 500;
       if (status === 500) console.error(err);
       if (res.headersSent) return res.end();
-      send(res, status, { error: status === 500 ? 'internal error' : err.message, ...(err.extra ?? {}) });
+      send(res, status, { error: status === 500 ? 'error interno' : err.message, ...(err.extra ?? {}) });
     });
   });
 }

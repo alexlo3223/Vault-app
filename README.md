@@ -18,7 +18,7 @@ Todo funciona en local: tus notas no salen de tu PC.
 
 ## Portada (banner) e icono
 
-Una nota puede tener un banner e icono, como una página de Notion: menú `/` → *Cover image* e *Icon*.
+Una nota puede tener un banner e icono, como una página de Notion: menú `/` → *Imagen de portada* e *Icono*.
 
 - El banner es una dirección `https://…`, un archivo de tu carpeta de notas (por ejemplo `banner.jpg` en `attachments`) o una imagen que subes desde Vault. El icono puede ser un emoji o una imagen y se solapa con el banner.
 - **Encuadrar**: pasa el ratón por el banner y pulsa *Encuadrar*. Se abre la imagen entera con un **marco** que es lo que se verá; arrástralo (o usa las flechas), cambia el **zoom** y la **altura**, y lee cuánto se verá (*Se ve el 63 % del ancho y el 38 % del alto de la imagen*). *Centrar* lo deja en el medio, que es como se ve un banner nuevo.
@@ -31,14 +31,14 @@ El **tutorial** (`notes/Tutorial.md`) y *Ejemplo Biblioteca* son paneles hechos 
 
 Cada nota de una base es una fila, y sus propiedades se ven y se editan en la tabla, en las tarjetas y en la cabecera de la propia nota, como en Notion.
 
-- **Añadir**: botón `+` al final de la tabla, o *+ Add a property* en la cabecera de una fila. Pones el nombre (por ejemplo *Page Count*) y eliges el tipo.
+- **Añadir**: botón `+` al final de la tabla, o *+ Añadir propiedad* en la cabecera de una fila. Pones el nombre (por ejemplo *Páginas*) y eliges el tipo.
 - **Configurar**: haz clic en el nombre de una columna (o de la propiedad en la cabecera de la fila): cambiar nombre o tipo, opciones y colores, formato de número, ocultar en la vista o borrar. Renombrar o borrar cambia todas las filas.
-- **Tipos**: Text, Number, Select, Multi-select, Status, Date, Checkbox, URL, Email, Phone, Formula, Relation, Rollup, Created time y Last edited time.
+- **Tipos**: Texto, Número, Selección, Selección múltiple, Estado, Fecha, Casilla, URL, Email, Teléfono, Fórmula, Relación, Rollup, Fecha de creación y Última edición.
 - **Fechas**: se escriben como `2026-11-16`, `16/11/2026` (día primero) o con hora `16/11/2026 14:30`, y `hoy`. Solo se guardan fechas reales y completas. Se guardan como `2026-11-16` o `2026-11-16T14:30`.
 - **Con teclado**: en una celda, `Enter` abre el editor y guarda, `Tab` guarda y cierra, `Esc` cancela, y el foco vuelve a la celda. En el menú de añadir propiedad, `↑`/`↓` eligen el tipo.
 - **Fórmulas**, al estilo de Notion: `round(prop("Pages Read") / prop("Page Count") * 100) / 100`. Las funciones también se pueden llamar con punto: `prop("Estado").includes("Done")`. El editor muestra la lista de propiedades y funciones y una vista previa con la primera fila. Funciones: `if ifs empty not and or round floor ceil abs sqrt pow min max sum mean length concat join contains replace replaceAll lower upper slice format toNumber now today dateAdd dateSubtract dateBetween formatDate year month date day`.
 - **Números** (también fórmulas y rollups): formato número, con comas, porcentaje, dólar o euro; decimales; y mostrar como número, **barra** o **anillo** con color.
-- **Relation** enlaza filas con las de otra base (por ejemplo un libro con sus citas) y **Rollup** calcula sobre las filas enlazadas: contar, sumar, media, mínimo, máximo, porcentaje marcado o mostrar los valores.
+- **Relación** enlaza filas con las de otra base (por ejemplo un libro con sus citas) y **Rollup** calcula sobre las filas enlazadas: contar, sumar, media, mínimo, máximo, porcentaje marcado o mostrar los valores.
 
 Dónde se guarda, para quien abra los archivos a mano o en Obsidian:
 - Los **valores** van en el frontmatter de cada nota: `Page Count: 512`, `Genres: [Fantasy, Sci-Fi]`, `Owned: true`, `Started: 2026-11-16`, `Quotes: ["[[Quote 1]]"]`. Las fórmulas, rollups y fechas automáticas se calculan y no se escriben.
@@ -46,28 +46,16 @@ Dónde se guarda, para quien abra los archivos a mano o en Obsidian:
 
 ## Instalar Vault
 
-### Opción 1: usar `Vault.exe` del repositorio (sin instalar)
+Descarga Vault desde la página de **Releases** del proyecto (https://github.com/alexlo3223/Vault-app/releases). Hay dos archivos:
 
-1. Instala **Git** y **Git LFS** (https://git-lfs.com; en Windows viene con *Git for Windows*).
-2. Clona el proyecto y activa LFS (una sola vez):
-   ```
-   git lfs install
-   git clone https://github.com/alexlo3223/Vault-app.git
-   cd Vault-app
-   ```
-   Si ya lo tenías clonado sin LFS, ejecuta `git lfs pull` dentro de la carpeta. `Vault.exe` debe pesar unos 110 MB; si pesa unos cientos de bytes, es solo un puntero de LFS y falta `git lfs pull`.
-3. Haz doble clic en **`Vault.exe`** (en la raíz del proyecto). Se abre en su propia ventana.
-4. Windows puede avisar de que el programa no está firmado (SmartScreen): pulsa *Más información* → *Ejecutar de todas formas*.
+- **`Vault-Setup-<versión>.exe`**: instalador. Crea accesos directos en el Escritorio y en el menú Inicio, y se desinstala desde *Configuración → Aplicaciones*.
+- **`Vault-<versión>-portable.exe`**: sin instalar. Haz doble clic y se abre en su propia ventana.
 
-También puedes descargar `Vault.exe` suelto desde la página de *Releases* de GitHub, sin clonar nada.
-
-### Opción 2: instalador
-
-Si generas el instalador (ver *Generar los ejecutables*), obtendrás `dist/Vault Setup 1.0.0.exe`: crea accesos directos en el Escritorio y en el menú Inicio, y se desinstala desde *Configuración → Aplicaciones*.
+Windows puede avisar de que el programa no está firmado (SmartScreen): pulsa *Más información* → *Ejecutar de todas formas*.
 
 ### Dónde se guardan las notas
 
-Vault guarda las notas en **`Documentos\Vault`**. Desde el menú:
+Vault guarda las notas en **`Documentos\Vault`**. La primera vez que se abre, si esa carpeta está vacía, copia dentro las notas del tutorial. Desde el menú:
 - *Archivo → Abrir carpeta de notas* abre esa carpeta en el Explorador.
 - *Archivo → Cambiar carpeta de notas…* apunta Vault a otra carpeta (por ejemplo tu bóveda de Obsidian). La app se reinicia y la recuerda.
 
@@ -80,15 +68,8 @@ Solo puede haber una ventana de Vault abierta: si lo abres otra vez, se muestra 
    ```
    npm run dist
    ```
-   Tarda unos minutos. Crea `dist/Vault Setup 1.0.0.exe` (instalador) y `dist/Vault-1.0.0-portable.exe` (portable).
-3. Para actualizar el `Vault.exe` del repositorio, copia el portable a la raíz con ese nombre y sube el cambio:
-   ```
-   copy dist\Vault-1.0.0-portable.exe Vault.exe
-   git add Vault.exe
-   git commit -m "Actualizar Vault.exe"
-   git push
-   ```
-   Git LFS (configurado en `.gitattributes`) guarda el `.exe` automáticamente.
+   Tarda unos minutos. Crea `dist/Vault Setup <versión>.exe` (instalador) y `dist/Vault-<versión>-portable.exe` (portable).
+3. Para publicar una versión, sube `version` en `package.json`, confirma y crea en GitHub una *Release* con la etiqueta `v<versión>`, adjuntando los dos `.exe` de `dist/`. Los ejecutables no se guardan en el repositorio (`.gitignore` los excluye).
 
 ## Desarrollo
 

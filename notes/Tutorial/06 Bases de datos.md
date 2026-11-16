@@ -12,9 +12,9 @@ Una base de datos es una **página** y una **carpeta** con el mismo nombre dentr
 
 ## Crear una base
 
-1. En una nota, escribe `/` y elige *Table* (o *Board*, *Gallery*, *List*, *Number chart* o *Donut chart*).
-2. Pulsa *Create a new database* y escribe el nombre.
-3. Vault crea la página de la base y su carpeta. Las filas se añaden con **+ New**.
+1. En una nota, escribe `/` y elige *Tabla* (o *Tablero*, *Galería*, *Lista*, *Número* o *Gráfico de donut*).
+2. Pulsa *Crear una base de datos nueva* y escribe el nombre.
+3. Vault crea la página de la base y su carpeta. Las filas se añaden con **+ Nueva**.
 
 Para usar una base que ya existe, elígela en el mismo menú.
 
@@ -22,11 +22,11 @@ Para usar una base que ya existe, elígela en el mismo menú.
 
 Una base puede tener varias vistas. Cada una muestra las mismas filas de otra manera:
 
-- **Table**: una fila por nota, con sus propiedades en columnas.
-- **Board**: columnas por valor de una propiedad (por ejemplo *Estado*).
-- **Gallery**: tarjetas con portada.
-- **List**: una línea por fila.
-- **Number** y **Donut**: totales y reparto.
+- **Tabla**: una fila por nota, con sus propiedades en columnas.
+- **Tablero**: columnas por valor de una propiedad (por ejemplo *Estado*).
+- **Galería**: tarjetas con portada.
+- **Lista**: una línea por fila.
+- **Número** y **Donut**: totales y reparto.
 
 Abre la página de la base para cambiar de vista con las pestañas, añadir una con `+`, o ajustar filtros, orden y agrupación con ⚙.
 

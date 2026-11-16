@@ -1,8 +1,9 @@
 ---
 icon: icono-vault.png
 cover: banner-inicio.jpg
-cover_y: 55
+cover_y: 48.7
 width: full
+cover_height: 420
 ---
 
 # Tutorial de Vault
@@ -31,6 +32,7 @@ width: full
 
 - [[10 Vistas y grafo]]
 - [[11 Aplicación de escritorio]]
+- [[12 Decorar]]
 </div>
 <div class="column" data-ratio="61">
 

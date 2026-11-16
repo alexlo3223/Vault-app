@@ -17,11 +17,11 @@ En la propiedad *Progreso* de [[Tutorial/Libros]]:
 round(prop("Leídas") / prop("Páginas") * 100) / 100
 ~~~
 
-Con formato **porcentaje** y **barra**, 210 de 662 páginas se ve como una barra a un 32 %. Para cambiar el formato, abre la configuración de la propiedad y elige *Number format* y *Show as*.
+Con formato **porcentaje** y **barra**, 210 de 662 páginas se ve como una barra a un 32 %. Para cambiar el formato, abre la configuración de la propiedad y elige *Formato del número* y *Mostrar como*.
 
 ## Cómo escribirla
 
-- Abre el editor con **Edit formula** desde la configuración de la propiedad.
+- Abre el editor con **Editar fórmula** desde la configuración de la propiedad.
 - A la izquierda están las propiedades y las funciones. Haz clic en una propiedad para insertar `prop("…")`, o en una función para insertarla.
 - Abajo ves una **vista previa** con la primera fila y el tipo de resultado.
 - `Ctrl+Enter` guarda.

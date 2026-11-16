@@ -61,6 +61,23 @@ export function makeResolver(docs) {
   };
 }
 
+// Rewrites the linkpath of the wikilinks outside code: `rewrite(linkpath)` gives the new one, or null to keep it.
+// The heading, the alias and a leading "!" stay as written.
+export function rewriteLinks(content, rewrite) {
+  const fix = (text) =>
+    text.replace(/(!?\[\[)([^\]|#^]*)([^\]]*\]\])/g, (all, open, lp, rest) => {
+      const next = lp.trim() ? rewrite(lp.trim()) : null;
+      return next ? open + next + rest : all;
+    });
+  let out = '';
+  let last = 0;
+  for (const m of content.matchAll(/```[\s\S]*?```|`[^`\n]*`/g)) {
+    out += fix(content.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  return out + fix(content.slice(last));
+}
+
 export function buildLinkGraph(docs) {
   const resolveLink = makeResolver(docs);
   const resolved = {};

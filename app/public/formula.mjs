@@ -37,7 +37,7 @@ export function tokenize(src) {
         } else s += src[j];
         j++;
       }
-      if (j >= src.length) fail('A text in quotes is not closed');
+      if (j >= src.length) fail('Hay un texto entre comillas sin cerrar');
       out.push({ t: 'str', v: s, at: i });
       i = j + 1;
       continue;
@@ -49,7 +49,7 @@ export function tokenize(src) {
       continue;
     }
     const op = OPS.find((o) => src.startsWith(o, i));
-    if (!op) fail(`Unexpected character “${c}”`);
+    if (!op) fail(`Carácter inesperado “${c}”`);
     out.push({ t: 'op', v: op, at: i });
     i += op.length;
   }
@@ -64,7 +64,7 @@ export function parse(src) {
   const isOp = (v) => peek()?.t === 'op' && peek().v === v;
   const isWord = (v) => peek()?.t === 'id' && peek().v === v;
   const expect = (v) => {
-    if (!isOp(v)) fail(peek() ? `Expected “${v}” but found “${peek().v}”` : `Expected “${v}” at the end`);
+    if (!isOp(v)) fail(peek() ? `Se esperaba “${v}” pero hay “${peek().v}”` : `Se esperaba “${v}” al final`);
     p++;
   };
 
@@ -137,9 +137,9 @@ export function parse(src) {
     while (isOp('.')) {
       p++;
       const name = peek();
-      if (!name || name.t !== 'id') fail('Expected a function name after “.”');
+      if (!name || name.t !== 'id') fail('Se esperaba el nombre de una función después de “.”');
       p++;
-      if (!isOp('(')) fail(`Write .${name.v}() with parentheses`);
+      if (!isOp('(')) fail(`Escribe .${name.v}() con paréntesis`);
       p++;
       n = { k: 'call', name: name.v, args: [n, ...args(')')] };
     }
@@ -148,7 +148,7 @@ export function parse(src) {
 
   function primary() {
     const tok = peek();
-    if (!tok) fail('The formula ends too early');
+    if (!tok) fail('La fórmula termina antes de tiempo');
     p++;
     if (tok.t === 'num') return { k: 'val', v: tok.v };
     if (tok.t === 'str') return { k: 'val', v: tok.v };
@@ -164,14 +164,14 @@ export function parse(src) {
         p++;
         return { k: 'call', name: tok.v, args: args(')') };
       }
-      fail(`Unknown name “${tok.v}”. Use prop("${tok.v}") for a property`);
+      fail(`Nombre desconocido “${tok.v}”. Usa prop("${tok.v}") para una propiedad`);
     }
-    fail(`Unexpected “${tok.v}”`);
+    fail(`“${tok.v}” inesperado`);
   }
 
-  if (!toks.length) fail('The formula is empty');
+  if (!toks.length) fail('La fórmula está vacía');
   const tree = ternary();
-  if (p < toks.length) fail(`Unexpected “${toks[p].v}”`);
+  if (p < toks.length) fail(`“${toks[p].v}” inesperado`);
   return tree;
 }
 
@@ -217,12 +217,12 @@ export function toNum(v) {
   if (typeof v === 'boolean') return v ? 1 : 0;
   if (isDate(v)) return v.getTime();
   if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v);
-  if (Array.isArray(v)) fail('A list cannot be used as a number');
-  fail(`“${v}” is not a number`);
+  if (Array.isArray(v)) fail('Una lista no se puede usar como número');
+  fail(`“${v}” no es un número`);
 }
 
 const pad = (n, w = 2) => String(n).padStart(w, '0');
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 export function formatDate(d, pattern = 'MMM D, YYYY') {
   if (!d) return '';
@@ -231,7 +231,7 @@ export function formatDate(d, pattern = 'MMM D, YYYY') {
       case 'YYYY':
         return pad(d.getFullYear(), 4);
       case 'MMMM':
-        return d.toLocaleString('en-US', { month: 'long' });
+        return d.toLocaleString('es', { month: 'long' });
       case 'MMM':
         return MONTHS[d.getMonth()];
       case 'MM':
@@ -288,7 +288,7 @@ const equal = (a, b) => {
 
 // ---------- dates ----------
 const UNITS = { years: 'y', year: 'y', quarters: 'q', quarter: 'q', months: 'M', month: 'M', weeks: 'w', week: 'w', days: 'd', day: 'd', hours: 'h', hour: 'h', minutes: 'm', minute: 'm', seconds: 's', second: 's' };
-const unitOf = (u) => UNITS[toStr(u).toLowerCase()] ?? fail(`Unknown time unit “${toStr(u)}” (use "days", "weeks", "months", "years", …)`);
+const unitOf = (u) => UNITS[toStr(u).toLowerCase()] ?? fail(`Unidad de tiempo desconocida “${toStr(u)}” (usa "days", "weeks", "months", "years", …)`);
 const MS = { w: 7 * 864e5, d: 864e5, h: 36e5, m: 6e4, s: 1e3 };
 
 function dateAdd(date, n, unit) {
@@ -318,20 +318,20 @@ function dateBetween(a, b, unit) {
 
 function needDate(v) {
   const d = toDate(v);
-  if (!d) fail(isEmpty(v) ? 'A date is empty' : `“${toStr(v)}” is not a date`);
+  if (!d) fail(isEmpty(v) ? 'Hay una fecha vacía' : `“${toStr(v)}” no es una fecha`);
   return d;
 }
 
 // ---------- functions ----------
 const need = (args, min, max, name) => {
-  if (args.length < min || args.length > max) fail(`${name}() takes ${min === max ? min : `${min} to ${max === Infinity ? 'any number of' : max}`} argument${max === 1 ? '' : 's'}`);
+  if (args.length < min || args.length > max) fail(`${name}() necesita ${min === max ? min : max === Infinity ? `${min} o más` : `de ${min} a ${max}`} argumento${max === 1 ? '' : 's'}`);
 };
 
 const regex = (pattern, flags) => {
   try {
     return new RegExp(toStr(pattern), flags);
   } catch {
-    fail(`“${toStr(pattern)}” is not a valid pattern`);
+    fail(`“${toStr(pattern)}” no es un patrón válido`);
   }
 };
 
@@ -398,42 +398,42 @@ FN.toLowerCase = FN.lower;
 
 // Shown in the formula editor: [name, signature, what it does, example].
 export const FUNCTIONS = [
-  ['prop', 'prop("Name")', 'The value of a property of this row.', 'prop("Page Count")'],
-  ['if', 'if(condition, then, else)', 'One of two values, depending on the condition.', 'if(prop("Done"), "✅", "⏳")'],
-  ['ifs', 'ifs(cond1, value1, cond2, value2, …, else)', 'The value of the first condition that is true.', 'ifs(prop("Score") > 8, "Great", prop("Score") > 5, "OK", "Bad")'],
-  ['round', 'round(number, digits?)', 'Rounds to whole numbers, or to some decimal digits.', 'round(3.14159, 2) = 3.14'],
-  ['floor', 'floor(number)', 'Rounds down.', 'floor(4.7) = 4'],
-  ['ceil', 'ceil(number)', 'Rounds up.', 'ceil(4.2) = 5'],
-  ['abs', 'abs(number)', 'The number without its sign.', 'abs(-3) = 3'],
-  ['sqrt', 'sqrt(number)', 'Square root.', 'sqrt(16) = 4'],
-  ['pow', 'pow(base, exponent)', 'Power (same as base ^ exponent).', 'pow(2, 3) = 8'],
-  ['min', 'min(a, b, …)', 'The smallest number (lists are opened).', 'min(4, 1, 9) = 1'],
-  ['max', 'max(a, b, …)', 'The largest number.', 'max(4, 1, 9) = 9'],
-  ['sum', 'sum(a, b, …)', 'Adds numbers and lists of numbers.', 'sum(1, 2, 3) = 6'],
-  ['mean', 'mean(a, b, …)', 'The average.', 'mean(2, 4) = 3'],
-  ['empty', 'empty(value)', 'True when the value is empty.', 'empty(prop("Author"))'],
-  ['not', 'not(value)', 'The opposite of a true/false value.', 'not(prop("Done"))'],
-  ['length', 'length(text or list)', 'Number of characters, or of items.', 'length("Dune") = 4'],
-  ['concat', 'concat(a, b, …)', 'Joins texts, or lists into one list.', 'concat("Vol. ", 2) = "Vol. 2"'],
-  ['join', 'join(list, separator)', 'A list as one text.', 'join(prop("Genres"), " · ")'],
-  ['contains', 'contains(text or list, value)', 'True when the value is inside.', 'contains(prop("Genres"), "Fantasy")'],
-  ['replace', 'replace(text, pattern, new)', 'Replaces the first match.', 'replace("a-b-c", "-", "+") = "a+b-c"'],
-  ['replaceAll', 'replaceAll(text, pattern, new)', 'Replaces every match.', 'replaceAll("a-b-c", "-", "+") = "a+b+c"'],
-  ['lower', 'lower(text)', 'Lowercase.', 'lower("Dune") = "dune"'],
-  ['upper', 'upper(text)', 'Uppercase.', 'upper("Dune") = "DUNE"'],
-  ['slice', 'slice(text or list, start, end?)', 'A part of a text or list.', 'slice("Vault", 0, 2) = "Va"'],
-  ['format', 'format(value)', 'Any value as text.', 'format(42) = "42"'],
-  ['toNumber', 'toNumber(text)', 'A text as a number.', 'toNumber("12") = 12'],
-  ['now', 'now()', 'The current date and time.', 'now()'],
-  ['today', 'today()', 'Today, without time.', 'today()'],
-  ['dateAdd', 'dateAdd(date, amount, unit)', 'Adds time. Units: "days", "weeks", "months", "years", "hours", "minutes".', 'dateAdd(prop("Start"), 7, "days")'],
-  ['dateSubtract', 'dateSubtract(date, amount, unit)', 'Subtracts time.', 'dateSubtract(today(), 1, "months")'],
-  ['dateBetween', 'dateBetween(date1, date2, unit)', 'Time from date2 to date1, in whole units.', 'dateBetween(today(), prop("Start"), "days")'],
-  ['formatDate', 'formatDate(date, pattern?)', 'A date as text. YYYY MM M DD D MMM MMMM HH mm.', 'formatDate(now(), "DD/MM/YYYY")'],
-  ['year', 'year(date)', 'The year.', 'year(today())'],
-  ['month', 'month(date)', 'The month, 1–12.', 'month(today())'],
-  ['date', 'date(date)', 'The day of the month, 1–31.', 'date(today())'],
-  ['day', 'day(date)', 'The day of the week, 1 (Monday) – 7 (Sunday).', 'day(today())'],
+  ['prop', 'prop("Nombre")', 'El valor de una propiedad de esta fila.', 'prop("Páginas")'],
+  ['if', 'if(condición, si, si no)', 'Uno de dos valores, según la condición.', 'if(prop("Hecho"), "✅", "⏳")'],
+  ['ifs', 'ifs(cond1, valor1, cond2, valor2, …, si no)', 'El valor de la primera condición que se cumple.', 'ifs(prop("Nota") > 8, "Genial", prop("Nota") > 5, "Bien", "Mal")'],
+  ['round', 'round(número, decimales?)', 'Redondea a un entero, o a los decimales que digas.', 'round(3.14159, 2) = 3.14'],
+  ['floor', 'floor(número)', 'Redondea hacia abajo.', 'floor(4.7) = 4'],
+  ['ceil', 'ceil(número)', 'Redondea hacia arriba.', 'ceil(4.2) = 5'],
+  ['abs', 'abs(número)', 'El número sin su signo.', 'abs(-3) = 3'],
+  ['sqrt', 'sqrt(número)', 'Raíz cuadrada.', 'sqrt(16) = 4'],
+  ['pow', 'pow(base, exponente)', 'Potencia (igual que base ^ exponente).', 'pow(2, 3) = 8'],
+  ['min', 'min(a, b, …)', 'El número más pequeño (las listas se abren).', 'min(4, 1, 9) = 1'],
+  ['max', 'max(a, b, …)', 'El número más grande.', 'max(4, 1, 9) = 9'],
+  ['sum', 'sum(a, b, …)', 'Suma números y listas de números.', 'sum(1, 2, 3) = 6'],
+  ['mean', 'mean(a, b, …)', 'La media.', 'mean(2, 4) = 3'],
+  ['empty', 'empty(valor)', 'Verdadero si el valor está vacío.', 'empty(prop("Autor"))'],
+  ['not', 'not(valor)', 'Lo contrario de un valor verdadero/falso.', 'not(prop("Hecho"))'],
+  ['length', 'length(texto o lista)', 'Número de caracteres, o de elementos.', 'length("Dune") = 4'],
+  ['concat', 'concat(a, b, …)', 'Une textos, o listas en una sola lista.', 'concat("Vol. ", 2) = "Vol. 2"'],
+  ['join', 'join(lista, separador)', 'Una lista como un solo texto.', 'join(prop("Géneros"), " · ")'],
+  ['contains', 'contains(texto o lista, valor)', 'Verdadero si el valor está dentro.', 'contains(prop("Géneros"), "Fantasía")'],
+  ['replace', 'replace(texto, patrón, nuevo)', 'Sustituye la primera coincidencia.', 'replace("a-b-c", "-", "+") = "a+b-c"'],
+  ['replaceAll', 'replaceAll(texto, patrón, nuevo)', 'Sustituye todas las coincidencias.', 'replaceAll("a-b-c", "-", "+") = "a+b+c"'],
+  ['lower', 'lower(texto)', 'En minúsculas.', 'lower("Dune") = "dune"'],
+  ['upper', 'upper(texto)', 'En mayúsculas.', 'upper("Dune") = "DUNE"'],
+  ['slice', 'slice(texto o lista, inicio, fin?)', 'Una parte de un texto o de una lista.', 'slice("Vault", 0, 2) = "Va"'],
+  ['format', 'format(valor)', 'Cualquier valor como texto.', 'format(42) = "42"'],
+  ['toNumber', 'toNumber(texto)', 'Un texto como número.', 'toNumber("12") = 12'],
+  ['now', 'now()', 'La fecha y la hora de ahora.', 'now()'],
+  ['today', 'today()', 'Hoy, sin hora.', 'today()'],
+  ['dateAdd', 'dateAdd(fecha, cantidad, unidad)', 'Suma tiempo. Unidades: "days", "weeks", "months", "years", "hours", "minutes".', 'dateAdd(prop("Inicio"), 7, "days")'],
+  ['dateSubtract', 'dateSubtract(fecha, cantidad, unidad)', 'Resta tiempo.', 'dateSubtract(today(), 1, "months")'],
+  ['dateBetween', 'dateBetween(fecha1, fecha2, unidad)', 'Tiempo de fecha2 a fecha1, en unidades enteras.', 'dateBetween(today(), prop("Inicio"), "days")'],
+  ['formatDate', 'formatDate(fecha, patrón?)', 'Una fecha como texto. YYYY MM M DD D MMM MMMM HH mm.', 'formatDate(now(), "DD/MM/YYYY")'],
+  ['year', 'year(fecha)', 'El año.', 'year(today())'],
+  ['month', 'month(fecha)', 'El mes, 1–12.', 'month(today())'],
+  ['date', 'date(fecha)', 'El día del mes, 1–31.', 'date(today())'],
+  ['day', 'day(fecha)', 'El día de la semana, 1 (lunes) – 7 (domingo).', 'day(today())'],
 ];
 
 // ---------- evaluation ----------
@@ -469,7 +469,7 @@ function binaryOp(n, env) {
         const both = [a, b].every((v) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))));
         if (!both || typeof a === 'string') return toStr(a) + toStr(b);
       }
-      if (isDate(a) || isDate(b)) fail('Use dateAdd() to add time to a date');
+      if (isDate(a) || isDate(b)) fail('Usa dateAdd() para sumar tiempo a una fecha');
       return toNum(a) + toNum(b);
     case '-':
       return toNum(a) - toNum(b);
@@ -500,7 +500,7 @@ function call(n, env) {
   const { name, args } = n;
   if (name === 'prop') {
     need(args, 1, 1, 'prop');
-    if (args[0].k !== 'val' || typeof args[0].v !== 'string') fail('prop() needs a property name in quotes: prop("Name")');
+    if (args[0].k !== 'val' || typeof args[0].v !== 'string') fail('prop() necesita el nombre de una propiedad entre comillas: prop("Nombre")');
     return env.prop(args[0].v);
   }
   if (name === 'if') {
@@ -508,16 +508,16 @@ function call(n, env) {
     return truthy(evalNode(args[0], env)) ? evalNode(args[1], env) : evalNode(args[2], env);
   }
   if (name === 'ifs') {
-    if (args.length < 2) fail('ifs() needs at least a condition and a value');
+    if (args.length < 2) fail('ifs() necesita al menos una condición y un valor');
     for (let i = 0; i + 1 < args.length; i += 2) if (truthy(evalNode(args[i], env))) return evalNode(args[i + 1], env);
     return args.length % 2 ? evalNode(args.at(-1), env) : null;
   }
   if (name === 'and' || name === 'or') {
-    if (!args.length) fail(`${name}() needs at least one value`);
+    if (!args.length) fail(`${name}() necesita al menos un valor`);
     return name === 'and' ? args.every((a) => truthy(evalNode(a, env))) : args.some((a) => truthy(evalNode(a, env)));
   }
   const fn = FN[name];
-  if (!fn) fail(`Unknown function “${name}”`);
+  if (!fn) fail(`No existe la función “${name}”`);
   need(args, fn[0], fn[1], name);
   const out = fn[2](args.map((a) => evalNode(a, env)));
   return typeof out === 'number' && !Number.isFinite(out) ? null : out;
@@ -542,7 +542,7 @@ export function evaluate(src, env) {
 }
 
 // The kind of a result, as shown under the formula editor.
-export const valueType = (v) => (isEmpty(v) ? 'empty' : Array.isArray(v) ? 'list' : isDate(v) ? 'date' : typeof v === 'boolean' ? 'checkbox' : typeof v === 'number' ? 'number' : 'text');
+export const valueType = (v) => (isEmpty(v) ? 'vacío' : Array.isArray(v) ? 'lista' : isDate(v) ? 'fecha' : typeof v === 'boolean' ? 'casilla' : typeof v === 'number' ? 'número' : 'texto');
 
 // Property names used by a formula (to rename them when a property is renamed).
 export function renameInFormula(src, from, to) {

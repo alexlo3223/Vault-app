@@ -1,7 +1,8 @@
 # Deleted notes (Vault moves them here) are not kept in the repository.
 notes/.trash/
 
-# Build output and dependencies
+# Build output and dependencies. Executables are published on GitHub Releases, not kept here.
 dist/
+*.exe
 node_modules/
 *.log

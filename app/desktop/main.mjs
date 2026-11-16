@@ -5,10 +5,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../server.mjs';
+import { seedNotes } from './seed.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ICON = join(HERE, 'icon.png');
 const CONFIG = () => join(app.getPath('userData'), 'config.json');
+// The tutorial notes: beside the app when installed (extraResources in package.json), the repo's own when not.
+const TUTORIAL = () => (app.isPackaged ? join(process.resourcesPath, 'notes') : join(HERE, '..', '..', 'notes'));
 
 let win = null;
 let server = null;
@@ -22,6 +25,11 @@ async function readConfig() {
   }
 }
 
+async function saveConfig(patch) {
+  await mkdir(dirname(CONFIG()), { recursive: true });
+  await writeFile(CONFIG(), JSON.stringify({ ...(await readConfig()), ...patch }, null, 2));
+}
+
 async function chooseNotesFolder() {
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     title: 'Elegir carpeta de notas',
@@ -29,8 +37,7 @@ async function chooseNotesFolder() {
     properties: ['openDirectory', 'createDirectory'],
   });
   if (canceled || !filePaths[0] || filePaths[0] === notesDir) return;
-  await mkdir(dirname(CONFIG()), { recursive: true });
-  await writeFile(CONFIG(), JSON.stringify({ ...(await readConfig()), notesDir: filePaths[0] }, null, 2));
+  await saveConfig({ notesDir: filePaths[0] });
   app.relaunch();
   app.quit();
 }
@@ -115,9 +122,16 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
-    notesDir = (await readConfig()).notesDir ?? join(app.getPath('documents'), 'Vault');
+    const config = await readConfig();
+    notesDir = config.notesDir ?? join(app.getPath('documents'), 'Vault');
     try {
       await mkdir(notesDir, { recursive: true });
+      // First run (no folder remembered yet): an empty folder gets the tutorial. The folder is then remembered,
+      // so emptying it later does not bring the tutorial back. A failed copy must not stop the app.
+      if (!config.notesDir) {
+        await seedNotes(TUTORIAL(), notesDir).catch((err) => console.error(err));
+        await saveConfig({ notesDir });
+      }
     } catch (err) {
       dialog.showErrorBox('Vault', `No se puede usar la carpeta de notas:\n${notesDir}\n\n${err.message}`);
       app.quit();

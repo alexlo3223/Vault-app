@@ -90,6 +90,7 @@ export function popover(anchor, cls = '') {
 }
 
 // ---------- values ----------
+const COLOR_LABEL = { gray: 'Gris', brown: 'Marrón', orange: 'Naranja', yellow: 'Amarillo', green: 'Verde', blue: 'Azul', purple: 'Morado', pink: 'Rosa', red: 'Rojo' };
 const chip = (text, color = 'gray', cls = '') => el('span', `chip c-${COLORS.includes(color) ? color : 'gray'} ${cls}`.trim(), text);
 const optionColor = (prop, name) => prop.options?.find((o) => same(o.name, name))?.color ?? 'gray';
 
@@ -259,7 +260,7 @@ export function editValue(anchor, prop, value, h) {
   p.node.append(input);
   if (start) {
     p.node.append(
-      button('pop-link', 'Clear', () => {
+      button('pop-link', 'Borrar', () => {
         input.value = '';
         p.close();
       }),
@@ -374,8 +375,8 @@ function optionPicker(anchor, prop, value, h) {
   let chosen = multi ? [...(value ?? [])] : value ? [String(value)] : [];
   const p = popover(anchor, 'pop-options');
   const search = el('input', 'pop-input');
-  search.placeholder = multi ? 'Search or create options…' : 'Search or create an option…';
-  search.setAttribute('aria-label', 'Option');
+  search.placeholder = multi ? 'Busca o crea opciones…' : 'Busca o crea una opción…';
+  search.setAttribute('aria-label', 'Opción');
   const picked = el('div', 'pop-chips');
   const list = el('div', 'pop-list');
   let active = 0;
@@ -406,7 +407,7 @@ function optionPicker(anchor, prop, value, h) {
           chosen = chosen.filter((n) => n !== name);
           h.save(multi ? chosen : '');
           draw();
-        }, `Remove ${name}`);
+        }, `Quitar ${name}`);
         c.append(x);
         return c;
       }),
@@ -420,7 +421,7 @@ function optionPicker(anchor, prop, value, h) {
     list.replaceChildren(
       ...items.map((it, i) => {
         const r = el('div', `pop-item${i === active ? ' active' : ''}`);
-        if (it.isNew) r.append(el('span', 'pop-hint', 'Create'), chip(it.name, nextColor(prop.options)));
+        if (it.isNew) r.append(el('span', 'pop-hint', 'Crear'), chip(it.name, nextColor(prop.options)));
         else {
           r.append(chip(it.name, optionColor(prop, it.name)));
           if (chosen.some((c) => same(c, it.name))) r.append(el('span', 'pop-tick', '✓'));
@@ -432,7 +433,7 @@ function optionPicker(anchor, prop, value, h) {
         return r;
       }),
     );
-    if (!items.length) list.append(el('div', 'pop-empty', q ? 'Option names can’t contain , = or new lines' : 'Type to create the first option'));
+    if (!items.length) list.append(el('div', 'pop-empty', q ? 'Los nombres de opción no pueden contener , = ni saltos de línea' : 'Escribe para crear la primera opción'));
     p.place();
   }
   search.addEventListener('input', () => {
@@ -463,13 +464,13 @@ function relationPicker(anchor, prop, value, h) {
   let chosen = [...(value ?? [])];
   const p = popover(anchor, 'pop-options');
   if (!prop.relation) {
-    p.node.append(el('div', 'pop-empty', 'Choose the related database first: click the property name → Related database.'));
+    p.node.append(el('div', 'pop-empty', 'Elige primero la base relacionada: clic en el nombre de la propiedad → Base relacionada.'));
     p.place();
     return;
   }
   const search = el('input', 'pop-input');
-  search.placeholder = 'Search pages…';
-  search.setAttribute('aria-label', 'Search pages');
+  search.placeholder = 'Buscar páginas…';
+  search.setAttribute('aria-label', 'Buscar páginas');
   const list = el('div', 'pop-list');
   let rows = [];
   const has = (r) => chosen.some((c) => same(c, r.name) || same(c, r.path.slice(0, -3)));
@@ -490,12 +491,12 @@ function relationPicker(anchor, prop, value, h) {
         return item;
       }),
     );
-    if (!shown.length) list.append(el('div', 'pop-empty', rows.length ? 'No pages match' : 'That database has no pages yet'));
+    if (!shown.length) list.append(el('div', 'pop-empty', rows.length ? 'Ninguna página coincide' : 'Esa base aún no tiene páginas'));
     p.place();
   };
   search.addEventListener('input', draw);
   p.node.append(search, list);
-  list.append(el('div', 'pop-empty', 'Loading…'));
+  list.append(el('div', 'pop-empty', 'Cargando…'));
   p.place();
   search.focus();
   h.loadRelated()
@@ -511,11 +512,11 @@ function relationPicker(anchor, prop, value, h) {
 export function addPropertyMenu(anchor, h) {
   const p = popover(anchor, 'pop-add');
   const name = el('input', 'pop-input');
-  name.placeholder = 'Property name';
-  name.setAttribute('aria-label', 'Property name');
+  name.placeholder = 'Nombre de la propiedad';
+  name.setAttribute('aria-label', 'Nombre de la propiedad');
   const msg = el('div', 'pop-msg');
   const list = el('div', 'pop-list');
-  list.append(el('div', 'pop-section', 'Type'));
+  list.append(el('div', 'pop-section', 'Tipo'));
   const create = (type) => {
     let n = name.value.trim() || TYPE[type].label;
     if (!validPropName(n)) return void (msg.textContent = 'Names can’t contain : , = [ ] # | " { }');
@@ -572,13 +573,13 @@ export function propertyMenu(anchor, prop, h) {
     const head = el('div', 'pm-head');
     const name = el('input', 'pop-input');
     name.value = cur.name;
-    name.setAttribute('aria-label', 'Property name');
+    name.setAttribute('aria-label', 'Nombre de la propiedad');
     const msg = el('div', 'pop-msg');
     const rename = async () => {
       const next = name.value.trim();
       if (next === cur.name) return;
       if (!validPropName(next)) return void (msg.textContent = 'Names can’t contain : , = [ ] # | " { }');
-      if (h.props.some((x) => same(x.name, next) && !same(x.name, cur.name))) return void (msg.textContent = 'Another property has that name');
+      if (h.props.some((x) => same(x.name, next) && !same(x.name, cur.name))) return void (msg.textContent = 'Otra propiedad ya tiene ese nombre');
       try {
         await h.rename(next);
         prop = { ...prop, name: next };
@@ -603,13 +604,13 @@ export function propertyMenu(anchor, prop, h) {
     // type
     p.node.append(
       row(
-        'Type',
+'Tipo',
         select(TYPES.map((t) => [t.type, t.label]), cur.type, (x) => {
           const fresh = newProp(cur.name, x);
           cur = { ...cur, type: x, options: hasOptions(x) && !cur.options.length ? fresh.options : cur.options, calc: cur.calc || fresh.calc };
           apply();
           draw();
-        }, 'Property type'),
+        }, 'Tipo de propiedad'),
       ),
     );
 
@@ -617,8 +618,8 @@ export function propertyMenu(anchor, prop, h) {
 
     if (cur.type === 'formula') {
       const box = el('div', 'pm-formula');
-      box.append(el('code', 'pm-code', cur.formula || 'No formula yet'));
-      box.append(button('db-tab', 'Edit formula', () => {
+      box.append(el('code', 'pm-code', cur.formula || 'Aún sin fórmula'));
+      box.append(button('db-tab', 'Editar fórmula', () => {
         closePop();
         h.editFormula(cur);
       }));
@@ -626,10 +627,10 @@ export function propertyMenu(anchor, prop, h) {
     }
 
     if (cur.type === 'relation') {
-      const sel = select([['', 'Loading…']], '', () => {}, 'Related database');
-      p.node.append(row('Related database', sel));
+      const sel = select([['', 'Cargando…']], '', () => {}, 'Base relacionada');
+      p.node.append(row('Base relacionada', sel));
       h.databases().then((dbs) => {
-        sel.replaceChildren(new Option('Choose…', ''), ...dbs.map((d) => new Option(d.name, d.source)));
+        sel.replaceChildren(new Option('Elige…', ''), ...dbs.map((d) => new Option(d.name, d.source)));
         sel.value = cur.relation;
         if (cur.relation && sel.value !== cur.relation) sel.append(new Option(cur.relation, cur.relation));
         sel.value = cur.relation;
@@ -637,45 +638,45 @@ export function propertyMenu(anchor, prop, h) {
           cur.relation = sel.value;
           apply();
         };
-      }).catch(() => sel.replaceChildren(new Option('Could not load databases', '')));
+      }).catch(() => sel.replaceChildren(new Option('No se pudieron cargar las bases', '')));
     }
 
     if (cur.type === 'rollup') {
       const rels = h.props.filter((x) => x.type === 'relation');
       p.node.append(
-        row('Relation', select([['', rels.length ? 'Choose…' : 'Add a Relation property first'], ...rels.map((x) => [x.name, x.name])], cur.rollup, (x) => {
+        row('Relación', select([['', rels.length ? 'Elige…' : 'Añade antes una propiedad Relación'], ...rels.map((x) => [x.name, x.name])], cur.rollup, (x) => {
           cur.rollup = x;
           apply();
-        }, 'Relation')),
+        }, 'Relación')),
       );
       const target = el('input', 'pop-input');
       target.value = cur.target;
-      target.placeholder = 'Name';
-      target.setAttribute('aria-label', 'Property of the related pages');
+      target.placeholder = 'Nombre';
+      target.setAttribute('aria-label', 'Propiedad de las páginas relacionadas');
       target.addEventListener('change', () => {
         cur.target = target.value.trim();
         apply();
       });
-      p.node.append(row('Property', target));
-      p.node.append(row('Calculate', select(CALCS, cur.calc || 'count', (x) => {
+      p.node.append(row('Propiedad', target));
+      p.node.append(row('Calcular', select(CALCS, cur.calc || 'count', (x) => {
         cur.calc = x;
         apply();
-      }, 'Calculate')));
+      }, 'Calcular')));
     }
 
     if (cur.type === 'number' || cur.type === 'formula' || cur.type === 'rollup') p.node.append(numberSettings(cur, apply, draw));
 
     // actions
     const acts = el('div', 'pm-actions');
-    if (h.hide) acts.append(button('pm-action', 'Hide in this view', () => {
+    if (h.hide) acts.append(button('pm-action', 'Ocultar en esta vista', () => {
       closePop();
       h.hide();
     }));
     let armed = false;
-    const del = button('pm-action pm-danger', 'Delete property', async () => {
+    const del = button('pm-action pm-danger', 'Borrar propiedad', async () => {
       if (!armed) {
         armed = true;
-        del.textContent = 'Click again to delete it from every page';
+        del.textContent = 'Haz clic otra vez para borrarla de todas las páginas';
         return;
       }
       closePop();
@@ -690,34 +691,34 @@ export function propertyMenu(anchor, prop, h) {
 
 function optionsEditor(cur, apply, redraw) {
   const box = el('div', 'pm-options');
-  box.append(el('div', 'pop-section', 'Options'));
+  box.append(el('div', 'pop-section', 'Opciones'));
   cur.options.forEach((o, i) => {
     const r = el('div', 'pm-option');
     const name = el('input', 'pop-input');
     name.value = o.name;
-    name.setAttribute('aria-label', 'Option name');
+    name.setAttribute('aria-label', 'Nombre de la opción');
     name.addEventListener('change', () => {
       const v = name.value.trim();
       if (!v || !validOption(v)) return void (name.value = o.name);
       o.name = v;
       apply();
     });
-    const color = select(COLORS.map((c) => [c, c[0].toUpperCase() + c.slice(1)]), o.color, (c) => {
+    const color = select(COLORS.map((c) => [c, COLOR_LABEL[c]]), o.color, (c) => {
       o.color = c;
       apply();
       redraw();
-    }, 'Option color');
+    }, 'Color de la opción');
     const dot = el('span', `chip c-${o.color} pm-swatch`);
     r.append(dot, name, color, button('chip-x', '×', () => {
       cur.options.splice(i, 1);
       apply();
       redraw();
-    }, `Remove ${o.name}`));
+    }, `Quitar ${o.name}`));
     box.append(r);
   });
   const add = el('input', 'pop-input');
-  add.placeholder = 'Add an option…';
-  add.setAttribute('aria-label', 'New option');
+  add.placeholder = 'Añadir una opción…';
+  add.setAttribute('aria-label', 'Opción nueva');
   add.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -733,18 +734,18 @@ function optionsEditor(cur, apply, redraw) {
 
 function numberSettings(cur, apply, redraw) {
   const box = el('div', 'pm-number');
-  box.append(row('Number format', select(FORMATS, cur.format || 'number', (x) => {
+  box.append(row('Formato del número', select(FORMATS, cur.format || 'number', (x) => {
     cur.format = x === 'number' ? '' : x;
     apply();
-  }, 'Number format')));
-  box.append(row('Decimal places', select([['', 'Default'], ...[0, 1, 2, 3, 4].map((n) => [String(n), String(n)])], cur.decimals, (x) => {
+  }, 'Formato del número')));
+  box.append(row('Decimales', select([['', 'Por defecto'], ...[0, 1, 2, 3, 4].map((n) => [String(n), String(n)])], cur.decimals, (x) => {
     cur.decimals = x;
     apply();
-  }, 'Decimal places')));
-  box.append(el('div', 'pop-section', 'Show as'));
+  }, 'Decimales')));
+  box.append(el('div', 'pop-section', 'Mostrar como'));
   const seg = el('div', 'pm-seg');
   for (const d of DISPLAYS) {
-    const b = button(`pm-seg-btn${(cur.display || 'number') === d ? ' active' : ''}`, d === 'number' ? '42 Number' : d === 'bar' ? 'Bar' : 'Ring', () => {
+    const b = button(`pm-seg-btn${(cur.display || 'number') === d ? ' active' : ''}`, d === 'number' ? '42 Número' : d === 'bar' ? 'Barra' : 'Anillo', () => {
       cur.display = d === 'number' ? '' : d;
       apply();
       redraw();
@@ -753,7 +754,7 @@ function numberSettings(cur, apply, redraw) {
   }
   box.append(seg);
   if (cur.display === 'bar' || cur.display === 'ring') {
-    box.append(row('Color', select(COLORS.map((c) => [c, c[0].toUpperCase() + c.slice(1)]), cur.color || 'green', (x) => {
+    box.append(row('Color', select(COLORS.map((c) => [c, COLOR_LABEL[c]]), cur.color || 'green', (x) => {
       cur.color = x;
       apply();
     }, 'Color')));
@@ -763,12 +764,12 @@ function numberSettings(cur, apply, redraw) {
     max.min = '0';
     max.value = cur.max;
     max.placeholder = cur.format === 'percent' ? '1 (100%)' : '100';
-    max.setAttribute('aria-label', 'Divide by');
+    max.setAttribute('aria-label', 'Dividir entre');
     max.addEventListener('change', () => {
       cur.max = Number(max.value) > 0 ? String(Number(max.value)) : '';
       apply();
     });
-    box.append(row('Divide by', max));
+    box.append(row('Dividir entre', max));
     const show = el('input');
     show.type = 'checkbox';
     show.checked = cur.numbers !== 'hide';
@@ -776,7 +777,7 @@ function numberSettings(cur, apply, redraw) {
       cur.numbers = show.checked ? '' : 'hide';
       apply();
     });
-    box.append(row('Show number', show));
+    box.append(row('Mostrar el número', show));
   }
   return box;
 }
@@ -786,14 +787,14 @@ function numberSettings(cur, apply, redraw) {
 export function formulaEditor(prop, h) {
   closePop();
   const dlg = el('dialog', 'formula-dlg');
-  dlg.setAttribute('aria-label', `Edit formula: ${prop.name}`);
+  dlg.setAttribute('aria-label', `Editar fórmula: ${prop.name}`);
   const head = el('div', 'fx-head');
-  head.append(el('span', 'fx-title', `Edit formula · ${prop.name}`), button('db-tab', 'Close', () => dlg.close()));
+  head.append(el('span', 'fx-title', `Editar fórmula · ${prop.name}`), button('db-tab', 'Cerrar', () => dlg.close()));
   const area = el('textarea', 'fx-input');
   area.value = prop.formula;
   area.spellcheck = false;
   area.placeholder = 'round(prop("Pages Read") / prop("Page Count") * 100) / 100';
-  area.setAttribute('aria-label', 'Formula');
+  area.setAttribute('aria-label', 'Fórmula');
   const preview = el('div', 'fx-preview');
   const cols = el('div', 'fx-cols');
   const left = el('div', 'fx-list');
@@ -811,7 +812,7 @@ export function formulaEditor(prop, h) {
     help.replaceChildren(el('div', 'fx-sig', f[1]), el('p', 'fx-desc', f[2]), el('code', 'fx-example', f[3]));
   };
 
-  left.append(el('div', 'pop-section', 'Properties'));
+  left.append(el('div', 'pop-section', 'Propiedades'));
   for (const x of h.props.filter((x) => x.name !== prop.name)) {
     const item = el('div', 'pop-item');
     item.append(typeIcon(x.type), el('span', 'pop-label', x.name));
@@ -821,7 +822,7 @@ export function formulaEditor(prop, h) {
     });
     left.append(item);
   }
-  left.append(el('div', 'pop-section', 'Functions'));
+  left.append(el('div', 'pop-section', 'Funciones'));
   for (const f of FUNCTIONS) {
     const item = el('div', 'pop-item');
     item.append(el('span', 'pop-label mono', f[0]));
@@ -844,14 +845,14 @@ export function formulaEditor(prop, h) {
   const update = () => {
     const src = area.value.trim();
     preview.replaceChildren();
-    if (!src) return void preview.append(el('span', 'pv-empty', 'Write a formula to see its result'));
+    if (!src) return void preview.append(el('span', 'pv-empty', 'Escribe una fórmula para ver su resultado'));
     const out = h.preview(src);
-    const label = el('span', 'fx-with', out.rowName ? `Preview with ${out.rowName}` : 'Preview (no pages yet)');
+    const label = el('span', 'fx-with', out.rowName ? `Vista previa con ${out.rowName}` : 'Vista previa (aún sin páginas)');
     if (out.error) {
       preview.append(label, el('span', 'pv-error', out.error));
       return;
     }
-    preview.append(label, valueEl({ ...prop, formula: src, type: 'formula' }, out.value, { empty: 'Empty' }), el('span', 'fx-type', `Type: ${valueType(out.value)}`));
+    preview.append(label, valueEl({ ...prop, formula: src, type: 'formula' }, out.value, { empty: 'Vacío' }), el('span', 'fx-type', `Tipo: ${valueType(out.value)}`));
   };
   area.addEventListener('input', update);
   area.addEventListener('keydown', (e) => {
@@ -862,11 +863,11 @@ export function formulaEditor(prop, h) {
   });
 
   const foot = el('div', 'fx-foot');
-  const saveBtn = button('db-tab db-done', 'Save', () => {
+  const saveBtn = button('db-tab db-done', 'Guardar', () => {
     h.save(area.value.trim().replace(/\s*\n\s*/g, ' '));
     dlg.close();
   });
-  foot.append(el('span', 'fx-tip mono', 'Ctrl+Enter saves · Esc closes'), button('db-tab', 'Cancel', () => dlg.close()), saveBtn);
+  foot.append(el('span', 'fx-tip mono', 'Ctrl+Enter guarda · Esc cierra'), button('db-tab', 'Cancelar', () => dlg.close()), saveBtn);
   dlg.append(head, area, preview, cols, foot);
   dlg.addEventListener('close', () => dlg.remove());
   document.body.append(dlg);

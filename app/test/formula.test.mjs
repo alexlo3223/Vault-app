@@ -95,14 +95,14 @@ test('a bare date is a local day, so it never shifts across time zones', () => {
 });
 
 test('errors are readable and never thrown', () => {
-  assert.match(run('foo(1)').error, /Unknown function “foo”/);
-  assert.match(run('1 +').error, /ends too early/);
-  assert.match(run('Pages').error, /Use prop\("Pages"\)/);
-  assert.match(run('round(1, 2, 3)').error, /round\(\) takes 1 to 2 arguments/);
-  assert.match(run('"unclosed').error, /not closed/);
-  assert.match(run('"a" * 2').error, /not a number/);
+  assert.match(run('foo(1)').error, /No existe la función “foo”/);
+  assert.match(run('1 +').error, /termina antes de tiempo/);
+  assert.match(run('Pages').error, /Usa prop\("Pages"\)/);
+  assert.match(run('round(1, 2, 3)').error, /round\(\) necesita de 1 a 2 argumentos/);
+  assert.match(run('"unclosed').error, /sin cerrar/);
+  assert.match(run('"a" * 2').error, /no es un número/);
   assert.match(run('prop("Missing")').error, /no Missing/);
-  assert.match(run('').error, /empty/);
+  assert.match(run('').error, /vacía/);
 });
 
 test('the tree keeps property names exactly, spaces and quotes included', () => {
@@ -115,7 +115,7 @@ test('renaming a property rewrites only the matching prop() calls', () => {
 });
 
 test('result types are named for the editor', () => {
-  assert.deepEqual([valueType(1), valueType('a'), valueType(true), valueType(new Date()), valueType([1]), valueType(null)], ['number', 'text', 'checkbox', 'date', 'list', 'empty']);
+  assert.deepEqual([valueType(1), valueType('a'), valueType(true), valueType(new Date()), valueType([1]), valueType(null)], ['número', 'texto', 'casilla', 'fecha', 'lista', 'vacío']);
 });
 
 test('every documented function exists', () => {
@@ -159,9 +159,9 @@ test('the dot form reads like Notion: value.function(args) is function(value, ar
 });
 
 test('dot-form mistakes get a readable message', () => {
-  assert.match(run('prop("Genres").').error, /Expected a function name after “\.”/);
-  assert.match(run('prop("Genres").length').error, /Write \.length\(\) with parentheses/);
-  assert.match(run('prop("Genres").nada()').error, /Unknown function “nada”/);
+  assert.match(run('prop("Genres").').error, /Se esperaba el nombre de una función después de “\.”/);
+  assert.match(run('prop("Genres").length').error, /Escribe \.length\(\) con paréntesis/);
+  assert.match(run('prop("Genres").nada()').error, /No existe la función “nada”/);
 });
 
 test('renaming a property used with the dot form rewrites it too', () => {
@@ -202,5 +202,5 @@ test('dates are read in the usual formats, day first with slashes, and with an o
 test('parseDate() in a formula reads the same formats', () => {
   assert.equal(val('year(parseDate("16/11/2026"))'), 2026);
   assert.equal(val('month(parseDate("2026-02-28"))'), 2);
-  assert.match(run('year(parseDate("2026-02-30"))').error, /empty|not a date/i);
+  assert.match(run('year(parseDate("2026-02-30"))').error, /vacía|no es una fecha/i);
 });

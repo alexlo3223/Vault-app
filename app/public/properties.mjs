@@ -4,21 +4,21 @@ import { FormulaError, evaluate, toDate, toStr } from './formula.mjs';
 
 // `stored: false` = computed, never written to a note.
 export const TYPES = [
-  { type: 'text', label: 'Text', icon: 'text' },
-  { type: 'number', label: 'Number', icon: 'hash' },
-  { type: 'select', label: 'Select', icon: 'select' },
-  { type: 'multi-select', label: 'Multi-select', icon: 'list' },
-  { type: 'status', label: 'Status', icon: 'status' },
-  { type: 'date', label: 'Date', icon: 'calendar' },
-  { type: 'checkbox', label: 'Checkbox', icon: 'check' },
+  { type: 'text', label: 'Texto', icon: 'text' },
+  { type: 'number', label: 'Número', icon: 'hash' },
+  { type: 'select', label: 'Selección', icon: 'select' },
+  { type: 'multi-select', label: 'Selección múltiple', icon: 'list' },
+  { type: 'status', label: 'Estado', icon: 'status' },
+  { type: 'date', label: 'Fecha', icon: 'calendar' },
+  { type: 'checkbox', label: 'Casilla', icon: 'check' },
   { type: 'url', label: 'URL', icon: 'link' },
   { type: 'email', label: 'Email', icon: 'at' },
-  { type: 'phone', label: 'Phone', icon: 'phone' },
-  { type: 'formula', label: 'Formula', icon: 'sigma', stored: false },
-  { type: 'relation', label: 'Relation', icon: 'relation' },
+  { type: 'phone', label: 'Teléfono', icon: 'phone' },
+  { type: 'formula', label: 'Fórmula', icon: 'sigma', stored: false },
+  { type: 'relation', label: 'Relación', icon: 'relation' },
   { type: 'rollup', label: 'Rollup', icon: 'rollup', stored: false },
-  { type: 'created', label: 'Created time', icon: 'clock', stored: false },
-  { type: 'edited', label: 'Last edited time', icon: 'clock', stored: false },
+  { type: 'created', label: 'Fecha de creación', icon: 'clock', stored: false },
+  { type: 'edited', label: 'Última edición', icon: 'clock', stored: false },
 ];
 export const TYPE = Object.fromEntries(TYPES.map((t) => [t.type, t]));
 export const isStored = (type) => TYPE[type]?.stored !== false;
@@ -27,22 +27,22 @@ export const isNumeric = (prop) => prop.type === 'number' || prop.type === 'form
 
 export const COLORS = ['gray', 'brown', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'red'];
 export const FORMATS = [
-  ['number', 'Number'],
-  ['comma', 'Number with commas'],
-  ['percent', 'Percent'],
-  ['dollar', 'US dollar'],
+  ['number', 'Número'],
+  ['comma', 'Número con separador de miles'],
+  ['percent', 'Porcentaje'],
+  ['dollar', 'Dólar'],
   ['euro', 'Euro'],
 ];
 export const DISPLAYS = ['number', 'bar', 'ring'];
 export const CALCS = [
-  ['list', 'Show original'],
-  ['count', 'Count all'],
-  ['count values', 'Count values'],
-  ['sum', 'Sum'],
-  ['avg', 'Average'],
-  ['min', 'Min'],
-  ['max', 'Max'],
-  ['percent checked', 'Percent checked'],
+  ['list', 'Mostrar originales'],
+  ['count', 'Contar todos'],
+  ['count values', 'Contar valores'],
+  ['sum', 'Suma'],
+  ['avg', 'Media'],
+  ['min', 'Mínimo'],
+  ['max', 'Máximo'],
+  ['percent checked', 'Porcentaje marcado'],
 ];
 
 // Keys that describe how a page looks, not data: never shown as database properties.
@@ -58,9 +58,9 @@ export const newProp = (name, type = 'text') => {
   return p;
 };
 export const STATUS_OPTIONS = [
-  { name: 'Not started', color: 'gray' },
-  { name: 'In progress', color: 'blue' },
-  { name: 'Done', color: 'green' },
+  { name: 'Sin empezar', color: 'gray' },
+  { name: 'En curso', color: 'blue' },
+  { name: 'Hecho', color: 'green' },
 ];
 
 // The color a new option gets: the first one not used yet (bright ones first, gray last), then around again.
@@ -224,7 +224,7 @@ export function computeRows(rows, schema, related = new Map()) {
     const get = (p) => {
       const key = p.name;
       if (done.has(key)) return values[key];
-      if (busy.has(key)) throw new FormulaError(`“${key}” depends on itself`);
+      if (busy.has(key)) throw new FormulaError(`“${key}” depende de sí misma`);
       busy.add(key);
       let v;
       try {
@@ -254,7 +254,7 @@ export function computeRows(rows, schema, related = new Map()) {
                 return v;
               }
               if (name.toLowerCase() === 'name' || name.toLowerCase() === 'title') return r.name;
-              throw new FormulaError(`There is no property “${name}”`);
+              throw new FormulaError(`No existe la propiedad “${name}”`);
             },
           });
           if (out.error) throw new FormulaError(out.error);
