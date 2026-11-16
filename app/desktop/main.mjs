@@ -75,7 +75,8 @@ function buildMenu() {
   ]);
 }
 
-const isExternal = (url) => /^https?:\/\//i.test(url);
+// Web links, e-mail addresses and phone numbers open in the system's own apps.
+const isExternal = (url) => /^(https?:\/\/|mailto:|tel:)/i.test(url);
 
 function createWindow(origin) {
   win = new BrowserWindow({

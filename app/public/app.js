@@ -1,7 +1,12 @@
 import { parse, serialize, newBlock, newColumn, isList, listNumbers, indentWidth, renderInline, renderedToRaw, formatTable, parseImage, embedLine, embedSrc, embedUrl, buttonLine, buttonParts, isButton, isEmbed, isHttps, bookmarkLine, bookmarkParts, mediaKind } from './blocks.mjs';
 import { parseProps, setProp } from './graph.mjs';
-import { databaseEl } from './database-ui.mjs';
+import { cellHandlers, databaseEl, loadData, schemaHandlers } from './database-ui.mjs';
+import { extractDatabase, newDatabasePage, parseDb, replaceDatabase, serializeDb } from './database.mjs';
+import { computeRows, fullSchema, isStored, newProp } from './properties.mjs';
+import { addPropertyMenu, editValue, onPopoverClose, popoverOpen, propertyMenu, typeIcon, valueEl } from './props-ui.mjs';
 import { icon, ago, renderOverview, renderGraphView } from './views.js';
+import { FRAME_KEYS, coverSrc, frameStyle, isImageRef, readCover, removePatch } from './cover.mjs';
+import { openCoverEditor } from './cover-ui.mjs';
 
 // ---------- small helpers ----------
 const $ = (sel) => document.querySelector(sel);
@@ -158,9 +163,12 @@ function showGraph() {
 }
 
 function renderProps(frontmatter) {
+  if (state.rowDb && state.rowDb.path === state.page?.path) return renderRowProps();
   const box = $('#props');
   box.replaceChildren();
-  const rows = frontmatter ? parseProps(frontmatter) : [];
+  let rows = frontmatter ? parseProps(frontmatter) : [];
+  // How the page looks (icon, banner and its framing, width) is seen as the page itself, so the card leaves it out.
+  if (rows) rows = rows.filter((r) => !LOOK_KEYS.has(r.key));
   box.hidden = !frontmatter || (rows && !rows.length);
   if (box.hidden) return;
   const head = el('div', 'props-head');
@@ -186,6 +194,142 @@ function renderProps(frontmatter) {
     grid.append(val);
   }
   box.append(grid);
+}
+
+// A page inside a database's folder is one of its rows: its header shows every property of the database, typed and
+// editable, with "+ Add a property" (like a Notion database page). Values are written into this page's frontmatter.
+function renderRowProps() {
+  const box = $('#props');
+  const { cfg, raw, related, page } = state.rowDb;
+  const path = state.page.path;
+  const own = raw.find((r) => r.path === path) ?? { path, mtime: state.page.mtime, ctime: state.page.mtime };
+  const parsed = (state.page.frontmatter && parseProps(state.page.frontmatter)) || [];
+  const current = { ...own, name: baseName(path), props: Object.fromEntries(parsed.map((r) => [r.key, r.list ?? r.value])) };
+  const [row] = computeRows([current], cfg.props, related);
+  const props = fullSchema(cfg.props, [current]);
+  const owner = { cfg, edit: (fn) => updateSchema(page, fn).then(() => loadRowDb(path), (e) => setStatus(e.message)) };
+  // Renaming or deleting a property rewrites every row on disk, this page included: save first, reload after.
+  const ctx = {
+    ...dbCtx,
+    setProp: (_, key, value) => {
+      setPageProp(key, value);
+      return Promise.resolve();
+    },
+    renameRowsProp: async (folder, from, to) => {
+      await flushSave();
+      await dbCtx.renameRowsProp(folder, from, to);
+      await openPage(path);
+    },
+  };
+  const handlers = schemaHandlers(owner, { props, raw: [current], related }, ctx);
+  const o = {
+    ctx,
+    owner,
+    act: (p) => p.catch((e) => setStatus(e.message)),
+    refocus: (_, name) => {
+      state.rowFocus = { name, at: Date.now() };
+    },
+  };
+
+  box.replaceChildren();
+  box.hidden = false;
+  const head = el('div', 'props-head');
+  const dbLink = el('a', 'count mono', `Database · ${baseName(page)}`);
+  dbLink.href = `#/${enc(page)}`;
+  head.append(el('span', 'eyebrow mono', 'Properties'), dbLink);
+  const grid = el('div', 'props-grid row-props');
+  for (const p of props) {
+    const key = el('button', 'prop-key prop-key-btn');
+    key.type = 'button';
+    key.title = `${p.name} · click for options`;
+    key.append(typeIcon(p.type, 13), el('span', '', p.name));
+    key.addEventListener('click', () => propertyMenu(key, p, handlers(p)));
+    const val = el('div', `prop-val prop-cell${isStored(p.type) ? ' editable' : ''}`);
+    val.append(valueEl(p, row.values[p.name], { error: row.errors[p.name], open: openByName, empty: 'Empty' }));
+    if (isStored(p.type)) {
+      val.tabIndex = 0;
+      val.dataset.prop = p.name;
+      const edit = (e) => {
+        if (e.target.closest('a')) return;
+        editValue(val, p, row.values[p.name], cellHandlers(current, p, o));
+      };
+      val.addEventListener('click', edit);
+      val.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          edit(e);
+        }
+      });
+    }
+    grid.append(key, val);
+  }
+  const add = el('button', 'prop-add', '+ Add a property');
+  add.type = 'button';
+  add.addEventListener('click', () =>
+    addPropertyMenu(add, { names: props.map((p) => p.name), create: (name, type) => owner.edit((c) => c.props.push(newProp(name, type))) }),
+  );
+  box.append(head, grid, add);
+  focusRow();
+}
+
+// After a value is saved the panel is drawn again: the keyboard goes back to the value that was edited, so a row can be
+// filled in one value after another. A panel that is still open (picking several options) keeps the focus until it closes.
+function focusRow() {
+  const want = state.rowFocus;
+  if (!want) return;
+  if (Date.now() - want.at > 3000) return void (state.rowFocus = null);
+  if (popoverOpen()) return;
+  const target = [...document.querySelectorAll('#props .prop-cell[data-prop]')].find((c) => c.dataset.prop === want.name);
+  if (!target) return;
+  target.focus({ preventScroll: true });
+  state.rowFocus = null;
+}
+// The redraw after a save comes a moment after the panel closes and focuses the value itself; this only covers a panel
+// that stayed open while values changed, so it waits for any such redraw first.
+onPopoverClose(() => setTimeout(focusRow, 400));
+
+// The database this page is a row of (a database whose source is the page's folder), with its schema and rows.
+async function loadRowDb(path) {
+  const folder = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+  let next = null;
+  if (folder) {
+    try {
+      const { databases } = await api('GET', '/api/databases');
+      const db = databases.find((d) => d.source.replace(/\/+$/, '').toLowerCase() === folder.toLowerCase());
+      if (db) {
+        const page = await api('GET', `/api/page?path=${enc(db.path)}`);
+        const cfg = parseDb(extractDatabase(page.content) ?? '');
+        const { raw, related } = await loadData(cfg, dbCtx);
+        next = { path, page: db.path, cfg, raw, related };
+      }
+    } catch (e) {
+      setStatus(e.message);
+    }
+  }
+  if (state.page?.path !== path) return; // the user moved on meanwhile
+  state.rowDb = next;
+  renderProps(state.page.frontmatter);
+}
+
+// Rewrites the database block of another page (its schema or views), keeping the rest of that page.
+async function updateSchema(page, fn) {
+  const data = await api('GET', `/api/page?path=${enc(page)}`);
+  const text = extractDatabase(data.content);
+  if (text === null) throw new Error('That page has no database');
+  const cfg = parseDb(text);
+  fn(cfg);
+  await api('PUT', '/api/page', { path: page, content: replaceDatabase(data.content, serializeDb(cfg)), baseMtime: data.mtime });
+}
+
+// Opens a page by name, as a relation chip links it ("Quote 1" or "Quotes/Quote 1"); never creates one.
+async function openByName(name) {
+  try {
+    const { path } = await api('GET', `/api/resolve?link=${enc(name)}&from=${enc(state.page?.path ?? '')}`);
+    if (path) go(path);
+    else setStatus(`There is no page called “${name}”`);
+  } catch (e) {
+    setStatus(e.message);
+  }
 }
 
 function updateMeta() {
@@ -324,7 +468,7 @@ function movedKey(from, to) {
 }
 
 async function createFolder(prefix = '') {
-  const name = prompt('New folder name')?.replace(/\s+/g, ' ').trim();
+  const name = (await askText('New folder name'))?.replace(/\s+/g, ' ').trim();
   if (!name) return;
   if (!validName(name)) return setStatus(BAD_NAME.replace('Page', 'Folder'));
   try {
@@ -338,7 +482,7 @@ async function createFolder(prefix = '') {
 }
 
 async function renameFolder(node) {
-  const name = prompt('Rename folder', node.name)?.replace(/\s+/g, ' ').trim();
+  const name = (await askText('Rename folder', node.name))?.replace(/\s+/g, ' ').trim();
   if (!name || name === node.name) return;
   if (!validName(name)) return setStatus(BAD_NAME.replace('Page', 'Folder'));
   const parent = parentKey(node.key);
@@ -482,6 +626,7 @@ async function openPage(path) {
   setNotice();
   titleEl.textContent = baseName(path);
   document.title = `${baseName(path)} · Vault`;
+  if (state.rowDb?.path !== path) state.rowDb = null;
   renderProps(doc.frontmatter);
   renderCover(doc.frontmatter);
   updateMeta();
@@ -489,6 +634,7 @@ async function openPage(path) {
   renderCrumbs();
   renderTree();
   rerender();
+  loadRowDb(path);
   $('main').scrollTop = 0;
   if (state.focusTitle) {
     state.focusTitle = false;
@@ -1326,21 +1472,21 @@ function insertBlocks(b, nbs) {
   return nbs[0];
 }
 
-function insertItem(b, item) {
+async function insertItem(b, item) {
   switch (item.type) {
     case 'callout':
       return focusBlock(insertBlocks(b, [newBlock('quote', '[!note] ')]).id, 'end');
     case 'embed': {
-      const raw = prompt('Web address to embed (https://…). YouTube links are converted.');
+      const raw = await askText('Web address to embed (https://…). YouTube links are converted.');
       if (!raw?.trim()) return;
       const url = embedUrl(raw.trim());
       if (!isHttps(url)) return setStatus('Only https:// addresses can be embedded');
       return insertBlocks(b, [newBlock('embed', embedLine(url))]);
     }
     case 'button': {
-      const label = prompt('Button text', 'New note')?.replace(/[<>"]/g, '').trim();
+      const label = (await askText('Button text', 'New note'))?.replace(/[<>"]/g, '').trim();
       if (!label) return;
-      const folder = prompt('Folder for the new note (empty = top level)', folderOf(state.page.path).slice(0, -1));
+      const folder = await askText('Folder for the new note (empty = top level)', folderOf(state.page.path).slice(0, -1));
       if (folder === null) return;
       if (/["<>]/.test(folder)) return setStatus('Folder names cannot contain " < >');
       return insertBlocks(b, [newBlock('button', buttonLine(folder.trim(), label))]);
@@ -1355,14 +1501,10 @@ function insertItem(b, item) {
         kids.map((c) => newBlock('bullet', `[[${c.name}]]`)),
       );
     }
-    case 'cover': {
-      const url = prompt('Cover image address (https://…). Leave empty to remove it.', '');
-      if (url === null) return;
-      if (url.trim() && !isHttps(url.trim())) return setStatus('The cover needs an https:// address');
-      return setPageProp('cover', url.trim());
-    }
+    case 'cover':
+      return editCover('source');
     case 'icon': {
-      const emoji = prompt('Icon for this page (one emoji). Leave empty to remove it.', '');
+      const emoji = await askText('Icon for this page: one emoji, or an image (a file of the vault or an https:// address). Leave empty to remove it.', '');
       if (emoji === null) return;
       return setPageProp('icon', emoji.trim());
     }
@@ -1373,10 +1515,10 @@ function insertItem(b, item) {
     case 'media':
       return pickMedia(b, item.kind);
     case 'bookmark': {
-      const url = prompt('Web address (https://…)');
+      const url = await askText('Web address (https://…)');
       if (url === null) return;
       if (!isHttps(url.trim())) return setStatus('Bookmarks need an https:// address');
-      const title = prompt('Title for the bookmark', url.trim().replace(/^https:\/\//, '').split('/')[0]);
+      const title = await askText('Title for the bookmark', url.trim().replace(/^https:\/\//, '').split('/')[0]);
       if (title === null) return;
       return insertBlocks(b, [newBlock('bookmark', bookmarkLine(url.trim(), title.trim() || url.trim()))]);
     }
@@ -1412,23 +1554,82 @@ function setPageProp(key, value) {
   changed();
 }
 
+// Sets several properties of the open page with one save ('' removes a key).
+function setPageProps(patch) {
+  for (const [key, value] of Object.entries(patch)) state.page.frontmatter = setProp(state.page.frontmatter, key, value);
+  renderProps(state.page.frontmatter);
+  renderCover(state.page.frontmatter);
+  changed();
+}
+
+const LOOK_KEYS = new Set([...FRAME_KEYS, 'icon', 'cover', 'width']);
+const pageValues = () => Object.fromEntries(((state.page?.frontmatter && parseProps(state.page.frontmatter)) || []).map((r) => [r.key, r.value]));
+
+// The banner: its image framed as the page says (see cover.mjs), with buttons that appear when the pointer is over it.
 function renderCover(frontmatter) {
   const rows = (frontmatter && parseProps(frontmatter)) || [];
-  const get = (key) => rows.find((r) => r.key === key)?.value ?? '';
-  const url = get('cover');
+  const values = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const c = readCover(values);
+  const from = state.page?.path ?? '';
+  const src = coverSrc(c.src, from);
   const cover = $('#cover');
   cover.replaceChildren();
-  if (isHttps(url)) {
+  cover.classList.remove('broken');
+  cover.hidden = !src;
+  if (src) {
+    cover.style.height = `${c.height}px`; // CSSOM: the page's CSP forbids style attributes
     const img = el('img');
-    img.src = url;
+    img.src = src;
     img.alt = '';
-    img.loading = 'lazy';
-    cover.append(img);
+    img.draggable = false;
+    Object.assign(img.style, frameStyle(c));
+    img.addEventListener('error', () => {
+      cover.classList.add('broken');
+      cover.replaceChildren(el('span', '', 'No se pudo cargar la portada'), coverBar());
+    });
+    cover.append(img, coverBar());
   }
-  cover.hidden = !isHttps(url);
-  document.querySelector('.page-layout').classList.toggle('full', get('width') === 'full');
-  $('#page-icon').textContent = get('icon');
-  $('#page-icon').hidden = !get('icon');
+  document.querySelector('.page-layout').classList.toggle('full', values.width === 'full');
+  const iconBox = $('#page-icon');
+  iconBox.replaceChildren();
+  const iconValue = values.icon ?? '';
+  const iconUrl = isImageRef(iconValue) ? coverSrc(iconValue, from) : '';
+  if (iconUrl) {
+    const img = el('img', 'page-icon-img');
+    img.src = iconUrl;
+    img.alt = '';
+    iconBox.append(img);
+  } else iconBox.textContent = iconValue;
+  iconBox.hidden = !iconValue;
+}
+
+function coverBar() {
+  const bar = el('div', 'cover-bar');
+  for (const [label, focus] of [['Encuadrar', 'frame'], ['Cambiar imagen', 'source']]) {
+    const b = el('button', '', label);
+    b.type = 'button';
+    b.addEventListener('click', () => editCover(focus));
+    bar.append(b);
+  }
+  const remove = el('button', '', 'Quitar');
+  remove.type = 'button';
+  remove.addEventListener('click', () => setPageProps(removePatch()));
+  bar.append(remove);
+  return bar;
+}
+
+// The framing editor for this page's banner; with no banner yet it starts on the image field.
+function editCover(focus) {
+  const cover = readCover(pageValues());
+  openCoverEditor({
+    cover,
+    pagePath: state.page.path,
+    boxWidth: $('#cover').clientWidth || document.querySelector('.page-layout').clientWidth - 96,
+    focus,
+    upload: uploadImage,
+    onSave: setPageProps,
+    onRemove: () => setPageProps(removePatch()),
+  });
 }
 
 // Changes one property of another note, through its file so the rest of the note is kept as it is.
@@ -1459,56 +1660,51 @@ const buttonEl = (b) => {
   return btn;
 };
 
-// Every folder in the page tree, as vault paths. Empty folders count too.
-function allFolders(nodes = state.tree, out = []) {
-  for (const n of nodes) {
-    if (!n.path || n.children.length) out.push(n.key);
-    allFolders(n.children, out);
+
+// Menu like Notion's: a database that already exists (a page with a database block), or a new one made in this page.
+async function openDatabasePicker(b, item) {
+  try {
+    const rect = caretRect() ?? blockContent(b).getBoundingClientRect();
+    const { databases } = await api('GET', '/api/databases');
+    // The page itself is left out: embedding a database inside its own page would show it recursively.
+    const found = databases.filter((d) => d.path !== state.page.path).map((d) => d.path.slice(0, -3));
+    const items = [...found.map((page) => ({ label: page, hint: 'existing', key: page })), { label: 'Create a new database', hint: 'new', key: null }];
+    menuMeta = { title: 'Choose a database', right: `${found.length} existing`, foot: '↑↓ navigate · ↵ choose · esc close' };
+    openMenu(items, rect, async (pick) => {
+      try {
+        const page = pick.key ?? (await createDatabase(b, item));
+        if (page) embedDatabase(b, page);
+      } catch (e) {
+        setStatus(e.message);
+      }
+    });
+  } catch (e) {
+    setStatus(e.message);
   }
-  return out;
 }
 
-// Small menu like Notion's: use a database folder that exists, or create one (the folder is made in the background).
-function openDatabasePicker(b, item) {
-  const folders = allFolders();
-  const items = [...folders.map((key) => ({ label: key, hint: 'existing', key })), { label: 'Create a new database', hint: 'new', key: null }];
-  menuMeta = { title: 'Choose a database', right: `${folders.length} existing`, foot: '↑↓ navigate · ↵ choose · esc close' };
-  openMenu(items, caretRect() ?? blockContent(b).getBoundingClientRect(), async (pick) => {
-    try {
-      const key = pick.key ?? (await createDatabaseFolder());
-      if (key) await attachDatabase(b, key, item.view);
-    } catch (e) {
-      setStatus(e.message);
-    }
-  });
-}
-
-async function createDatabaseFolder() {
-  const name = prompt('Name for the new database', 'New database')?.replace(/\s+/g, ' ').trim();
+// A new database lives inside the current page: "Page/Name.md" is its page and "Page/Name/" holds its rows.
+// Returns the page path without ".md" (the same name the embed block uses), or null when cancelled.
+async function createDatabase(b, item) {
+  const name = (await askText('Name for the new database', 'Database'))?.replace(/\s+/g, ' ').trim();
   if (!name) return null;
   if (!validName(name)) {
     setStatus(BAD_NAME.replace('Page', 'Database'));
     return null;
   }
-  const key = `${folderOf(state.page.path)}${name}`;
-  await api('POST', '/api/folder', { path: key });
+  const stem = state.page.path.slice(0, -3);
+  const source = `${stem}/${name}`;
+  await api('POST', '/api/folder', { path: source });
+  await api('PUT', '/api/page', { path: `${source}.md`, content: newDatabasePage(source, item.view), baseMtime: null });
+  expanded.add(stem);
+  saveExpanded();
   await loadTree();
-  return key;
+  return source;
 }
 
-// A database is a page beside its folder ("Books.md" next to "Books/"). The page stores the views and the folder
-// holds the rows; the note only embeds the page, so the same database can be shown in many notes.
-async function attachDatabase(b, source, view) {
-  const page = `${source}.md`;
-  try {
-    await api('GET', `/api/page?path=${enc(page)}`);
-  } catch (e) {
-    if (e.status !== 404) throw e;
-    const group = view === 'board' || view === 'donut' ? 'group: status\n' : '';
-    await api('PUT', '/api/page', { path: page, content: `~~~database\nsource: ${source}\nview: ${view}\n${group}~~~\n`, baseMtime: null });
-    await loadTree();
-  }
-  return insertBlocks(b, [newBlock('code', `page: ${source}`, { info: 'database', fence: '```', indent: '' })]);
+// The note only embeds the database page ("page: Page/Name"), so the same database can be shown in many notes.
+function embedDatabase(b, page) {
+  return insertBlocks(b, [newBlock('code', `page: ${page}`, { info: 'database', fence: '```', indent: '' })]);
 }
 
 // A new note in the database folder, opened straight away.
@@ -1569,6 +1765,9 @@ const dbCtx = {
     b.showSource = true;
     rerender();
   },
+  updateSchema,
+  renameRowsProp: (folder, from, to) => api('POST', '/api/db/prop', { folder, from, to }),
+  open: openByName,
 };
 
 // ---------- popup menu (slash commands, link picker) ----------
@@ -1980,6 +2179,36 @@ async function followLink(target) {
   } catch (e) {
     setStatus(e.message);
   }
+}
+
+// Text prompt in our own dialog: window.prompt() does not exist in Electron. Resolves to the text, or null on Cancel/Esc.
+function askText(title, value = '', { placeholder = '' } = {}) {
+  closeMenu();
+  const dlg = $('#ask');
+  const input = $('#ask-input');
+  $('#ask-title').textContent = title;
+  input.value = value;
+  input.placeholder = placeholder;
+  return new Promise((resolve) => {
+    const form = $('#ask-form');
+    const cancel = $('#ask-cancel');
+    const done = (result) => {
+      form.onsubmit = null;
+      cancel.onclick = null;
+      dlg.onclose = null;
+      if (dlg.open) dlg.close();
+      resolve(result);
+    };
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      done(input.value);
+    };
+    cancel.onclick = () => done(null);
+    dlg.onclose = () => done(null); // Esc
+    dlg.showModal();
+    input.focus();
+    input.select();
+  });
 }
 
 // ---------- quick switcher / search (Ctrl+K) ----------

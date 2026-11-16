@@ -8,13 +8,41 @@ Vault es una aplicación de notas para Windows. Se instala como cualquier progra
 - **Columnas**: arrastra un bloque al borde de otro y se colocan lado a lado; cada columna puede tener su ancho.
 - **Callouts** (`> [!tip] Título`), **incrustaciones** de páginas web y vídeos de YouTube, **marcadores web** y botones que crean notas.
 - **Medios**: imágenes, vídeo, audio y archivos subidos a la carpeta `attachments`.
-- **Bases de datos**: una base es una página (por ejemplo `Libros.md`) junto a una carpeta con las notas de la base. La página guarda las vistas y cada nota de la carpeta es una fila. Vistas de tabla, tablero, galería, lista, número y donut, con filtros, orden, agrupación y un panel ⚙ para configurarlas.
+- **Bases de datos**: se crean dentro de la página donde estás: `Página/Base.md` es la base y `Página/Base/` la carpeta con sus notas (filas). Vistas de tabla, tablero, galería, lista, número y donut, con filtros, orden, agrupación y un panel ⚙ para configurarlas. Desde otra página puedes insertar una base ya existente. Las propiedades tienen tipo y se pueden calcular con fórmulas (ver *Propiedades de las bases de datos*).
 - **Menú de insertar**: escribe `/` o haz clic derecho en un bloque; las opciones están agrupadas por secciones con iconos.
 - **Vistas**: resumen de notas, vista de grafo de enlaces y búsqueda con `Ctrl+K`.
 - **Propiedades** de la nota (`icon`, `cover`, `width`…) en el frontmatter YAML.
 - **Aplicación de escritorio**: instalador o versión portable, con su propia ventana; no hace falta navegador ni Node.js.
 
 Todo funciona en local: tus notas no salen de tu PC.
+
+## Portada (banner) e icono
+
+Una nota puede tener un banner e icono, como una página de Notion: menú `/` → *Cover image* e *Icon*.
+
+- El banner es una dirección `https://…`, un archivo de tu carpeta de notas (por ejemplo `banner.jpg` en `attachments`) o una imagen que subes desde Vault. El icono puede ser un emoji o una imagen y se solapa con el banner.
+- **Encuadrar**: pasa el ratón por el banner y pulsa *Encuadrar*. Se abre la imagen entera con un **marco** que es lo que se verá; arrástralo (o usa las flechas), cambia el **zoom** y la **altura**, y lee cuánto se verá (*Se ve el 63 % del ancho y el 38 % del alto de la imagen*). *Centrar* lo deja en el medio, que es como se ve un banner nuevo.
+- Se guarda en la cabecera de la nota, y solo si no son los valores por defecto: `cover`, `cover_x` y `cover_y` (0–100, 50 = centrado), `cover_zoom` (1–3) y `cover_height` (120–420 px, 220 por defecto).
+- Una nota puede mostrar solo algunas vistas de una base como pestañas: `use: Leyendo, Leídos, Pendientes`.
+
+El **tutorial** (`notes/Tutorial.md`) y *Ejemplo Biblioteca* son paneles hechos así: banner, icono, tres columnas, botones, galería con pestañas y un gráfico.
+
+## Propiedades de las bases de datos
+
+Cada nota de una base es una fila, y sus propiedades se ven y se editan en la tabla, en las tarjetas y en la cabecera de la propia nota, como en Notion.
+
+- **Añadir**: botón `+` al final de la tabla, o *+ Add a property* en la cabecera de una fila. Pones el nombre (por ejemplo *Page Count*) y eliges el tipo.
+- **Configurar**: haz clic en el nombre de una columna (o de la propiedad en la cabecera de la fila): cambiar nombre o tipo, opciones y colores, formato de número, ocultar en la vista o borrar. Renombrar o borrar cambia todas las filas.
+- **Tipos**: Text, Number, Select, Multi-select, Status, Date, Checkbox, URL, Email, Phone, Formula, Relation, Rollup, Created time y Last edited time.
+- **Fechas**: se escriben como `2026-11-16`, `16/11/2026` (día primero) o con hora `16/11/2026 14:30`, y `hoy`. Solo se guardan fechas reales y completas. Se guardan como `2026-11-16` o `2026-11-16T14:30`.
+- **Con teclado**: en una celda, `Enter` abre el editor y guarda, `Tab` guarda y cierra, `Esc` cancela, y el foco vuelve a la celda. En el menú de añadir propiedad, `↑`/`↓` eligen el tipo.
+- **Fórmulas**, al estilo de Notion: `round(prop("Pages Read") / prop("Page Count") * 100) / 100`. Las funciones también se pueden llamar con punto: `prop("Estado").includes("Done")`. El editor muestra la lista de propiedades y funciones y una vista previa con la primera fila. Funciones: `if ifs empty not and or round floor ceil abs sqrt pow min max sum mean length concat join contains replace replaceAll lower upper slice format toNumber now today dateAdd dateSubtract dateBetween formatDate year month date day`.
+- **Números** (también fórmulas y rollups): formato número, con comas, porcentaje, dólar o euro; decimales; y mostrar como número, **barra** o **anillo** con color.
+- **Relation** enlaza filas con las de otra base (por ejemplo un libro con sus citas) y **Rollup** calcula sobre las filas enlazadas: contar, sumar, media, mínimo, máximo, porcentaje marcado o mostrar los valores.
+
+Dónde se guarda, para quien abra los archivos a mano o en Obsidian:
+- Los **valores** van en el frontmatter de cada nota: `Page Count: 512`, `Genres: [Fantasy, Sci-Fi]`, `Owned: true`, `Started: 2026-11-16`, `Quotes: ["[[Quote 1]]"]`. Las fórmulas, rollups y fechas automáticas se calculan y no se escriben.
+- La **definición** (tipo, opciones, fórmula, formato) va en el bloque `database` de la página de la base, con líneas `prop:` antes de las vistas. Las claves del frontmatter que no están definidas se muestran igual, con un tipo deducido.
 
 ## Instalar Vault
 
@@ -78,6 +106,7 @@ npm install
 | `npm run dist` | Genera el instalador y el portable en `dist/`. Tarda unos minutos la primera vez. |
 | `npm start` | Modo navegador: servidor en http://localhost:4321 con las notas de `notes/`. |
 | `npm run icon` | Vuelve a generar `app/desktop/icon.png` a partir de `app/public/icon.svg`. |
+| `npm run art` | Vuelve a dibujar los banners, portadas e iconos del tutorial en `notes/attachments/`. |
 | `npm test` | Pruebas automáticas; deben terminar todas en verde. |
 
 En modo navegador puedes cambiar el puerto con `--port 5000` y la carpeta con `--root` (`node app/server.mjs --root "C:\Ruta\a\mis\notas"`).
@@ -103,3 +132,5 @@ Si al ejecutar `npm run desktop` desde el terminal de VS Code Electron se compor
 - Las bases de datos se recargan al cambiar algo de la página.
 - Solo hay una persona usando la app: no tiene cuentas ni acceso desde otros equipos.
 - El ejecutable no está firmado, así que Windows muestra el aviso de SmartScreen la primera vez.
+- Las relaciones son de un solo sentido: enlazar un libro con una cita no añade el libro en la cita.
+- No hay propiedades Person, Files & media, Button, Place ni ID, ni vistas Timeline, Calendar, Chart o Map.

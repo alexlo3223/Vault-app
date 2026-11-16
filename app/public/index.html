@@ -90,5 +90,17 @@
       <ul id="results" role="listbox"></ul>
       <footer class="sw-foot mono"><span>↑↓ navigate</span><span>↵ open</span><span>tag: path: file: line: block: section:</span></footer>
     </dialog>
+
+    <!-- Text prompt used instead of window.prompt(), which Electron does not support. -->
+    <dialog id="ask" aria-labelledby="ask-title">
+      <form id="ask-form" method="dialog">
+        <h2 id="ask-title" class="ask-title"></h2>
+        <input id="ask-input" type="text" autocomplete="off" aria-label="Value" />
+        <div class="ask-actions">
+          <button type="button" id="ask-cancel" class="db-tab">Cancel</button>
+          <button type="submit" id="ask-ok" class="db-tab db-done">OK</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

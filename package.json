@@ -7,13 +7,16 @@
   "private": true,
   "type": "module",
   "main": "app/desktop/main.mjs",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node app/server.mjs",
     "desktop": "electron .",
     "icon": "electron scripts/make-icon.mjs",
     "dist": "electron-builder --win",
-    "test": "node --test \"app/test/*.test.mjs\""
+    "test": "node --test \"app/test/*.test.mjs\"",
+    "art": "electron scripts/make-tutorial-art.mjs"
   },
   "devDependencies": {
     "electron": "45.2.1",
@@ -22,10 +25,19 @@
   "build": {
     "appId": "app.vault.notes",
     "productName": "Vault",
-    "directories": { "output": "dist" },
-    "files": ["app/**/*", "!app/test/**", "package.json"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "app/**/*",
+      "!app/test/**",
+      "package.json"
+    ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "app/desktop/icon.png"
     },
     "nsis": {

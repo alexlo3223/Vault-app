@@ -1,6 +1,6 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../server.mjs';
@@ -61,8 +61,10 @@ test('setProp adds, replaces, quotes and removes frontmatter keys', () => {
 
 let server;
 let base;
+let vaultRoot;
 before(async () => {
   const root = await mkdtemp(join(tmpdir(), 'vault-features-'));
+  vaultRoot = root;
   await mkdir(join(root, 'Books', 'Deep'), { recursive: true });
   await writeFile(join(root, 'Books', 'Dune.md'), '---\nauthor: Herbert\nstatus: read\n---\n# Dune\n');
   await writeFile(join(root, 'Books', 'Deep', 'Hidden.md'), 'not a direct child');
@@ -93,5 +95,63 @@ test('every browser module in public/ is served (a missing route breaks the whol
   const dir = fileURLToPath(new URL('../public/', import.meta.url));
   for (const f of (await readdir(dir)).filter((n) => /\.(m?js|css)$/.test(n))) {
     assert.equal((await fetch(`${base}/${f}`)).status, 200, `${f} is not served`);
+  }
+});
+
+test('the database menu lists only pages that hold a database block', async () => {
+  await writeFile(join(vaultRoot, 'Books', 'Library.md'), '~~~database\nsource: Books/Library\nview: table\n~~~\n');
+  await writeFile(join(vaultRoot, 'Books', 'Embedding.md'), '```database\npage: Books/Library\n```\n');
+  try {
+    const { databases } = await (await fetch(`${base}/api/databases`)).json();
+    assert.deepEqual(databases, [{ path: 'Books/Library.md', name: 'Library', source: 'Books/Library' }]);
+  } finally {
+    await rm(join(vaultRoot, 'Books', 'Library.md'));
+    await rm(join(vaultRoot, 'Books', 'Embedding.md'));
+  }
+});
+
+test('database rows carry a creation time', async () => {
+  const { rows } = await (await fetch(`${base}/api/db?folder=Books`)).json();
+  assert.ok(rows[0].ctime > 0);
+});
+
+test('a property is renamed, then removed, in every row of a database', async () => {
+  const post = (body) => fetch(`${base}/api/db/prop`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  await writeFile(join(vaultRoot, 'Books', 'Emma.md'), '---\nauthor: Austen\nstatus: todo\n---\n# Emma\n');
+  try {
+    let res = await post({ folder: 'Books', from: 'author', to: 'Writer' });
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { changed: 2 });
+    const read = async (name) => (await fetch(`${base}/api/page?path=${encodeURIComponent(`Books/${name}.md`)}`).then((r) => r.json())).content;
+    assert.equal(await read('Emma'), '---\nWriter: Austen\nstatus: todo\n---\n# Emma\n');
+    assert.match(await read('Dune'), /^---\nWriter: Herbert\nstatus: read\n---\n# Dune/);
+    // the note in a sub-folder is not a row of this database
+    assert.equal(await fetch(`${base}/api/page?path=${encodeURIComponent('Books/Deep/Hidden.md')}`).then((r) => r.json()).then((d) => d.content), 'not a direct child');
+
+    res = await post({ folder: 'Books', from: 'Writer', to: '' });
+    assert.deepEqual(await res.json(), { changed: 2 });
+    assert.equal(await read('Emma'), '---\nstatus: todo\n---\n# Emma\n');
+
+    // names that would break the frontmatter, and folders outside the vault, are refused
+    assert.equal((await post({ folder: 'Books', from: 'status', to: 'a: b' })).status, 400);
+    assert.equal((await post({ folder: '..', from: 'status', to: 'x' })).status, 400);
+  } finally {
+    await rm(join(vaultRoot, 'Books', 'Emma.md'));
+    await writeFile(join(vaultRoot, 'Books', 'Dune.md'), '---\nauthor: Herbert\nstatus: read\n---\n# Dune\n');
+  }
+});
+
+test('saving a note keeps its creation time (Created time must not become the last edit)', async () => {
+  const put = (content, baseMtime) => fetch(`${base}/api/page`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: 'Books/Kept.md', content, baseMtime }) }).then((r) => r.json());
+  const ctime = async () => (await (await fetch(`${base}/api/db?folder=Books`)).json()).rows.find((r) => r.name === 'Kept').ctime;
+  try {
+    const first = await put('one', null);
+    const before = await ctime();
+    await new Promise((r) => setTimeout(r, 60));
+    await put('two', first.mtime);
+    assert.equal(await ctime(), before);
+    assert.equal(await fetch(`${base}/api/page?path=Books%2FKept.md`).then((r) => r.json()).then((d) => d.content), 'two');
+  } finally {
+    await rm(join(vaultRoot, 'Books', 'Kept.md'));
   }
 });

@@ -3,12 +3,14 @@
 // Listens on 127.0.0.1 only; every path from the browser is checked before it touches the disk.
 // shortcut: the note index is rebuilt on every tree/graph/search request; cache it if a large vault gets slow.
 import http from 'node:http';
-import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, posix, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildIndex, search } from './lib/search.mjs';
 import { buildLinkGraph, makeResolver } from './lib/links.mjs';
-import { parseProps } from './public/graph.mjs';
+import { parseProps, renameProp } from './public/graph.mjs';
+import { validPropName } from './public/properties.mjs';
+import { extractDatabase, parseDb } from './public/database.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, 'public');
@@ -21,6 +23,11 @@ const STATIC = {
   '/graph.mjs': ['graph.mjs', JS],
   '/database.mjs': ['database.mjs', JS],
   '/database-ui.mjs': ['database-ui.mjs', JS],
+  '/formula.mjs': ['formula.mjs', JS],
+  '/properties.mjs': ['properties.mjs', JS],
+  '/props-ui.mjs': ['props-ui.mjs', JS],
+  '/cover.mjs': ['cover.mjs', JS],
+  '/cover-ui.mjs': ['cover-ui.mjs', JS],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'],
   '/icon.svg': ['icon.svg', 'image/svg+xml'],
@@ -210,11 +217,17 @@ const statOrNull = (p) =>
   });
 const isDir = async (p) => (await statOrNull(p))?.isDirectory() ?? false;
 
+// Writes a file without ever leaving it half-written. A new file is written beside its place and renamed into it.
+// An existing file is first written in full to that side file, then overwritten in place and the side file removed:
+// overwriting keeps the file's identity, so its creation time (the "Created time" property) survives every save,
+// and if the overwrite fails the side file still holds the complete new content.
 async function atomicWrite(full, content) {
   await mkdir(dirname(full), { recursive: true });
   const tmp = join(dirname(full), `.${basename(full)}.${process.pid}.tmp`);
   await writeFile(tmp, content, 'utf8');
-  await rename(tmp, full);
+  if (!(await statOrNull(full))) return rename(tmp, full);
+  await writeFile(full, content, 'utf8');
+  await unlink(tmp);
 }
 
 async function moveToTrash(root, full) {
@@ -260,20 +273,50 @@ function send(res, status, data) {
 
 // The notes directly inside one folder, with their frontmatter properties, for database blocks.
 // Properties that parseProps cannot read (raw YAML) come back as an empty object.
-async function folderRows(root, folder) {
+const FRONTMATTER = /^---\r?\n(?:[\s\S]*?\r?\n)?---(?:\r?\n|$)/;
+
+// The notes directly inside one database folder.
+async function rowDocs(root, folder) {
   const dir = folder.replace(/\/+$/, '');
   folderPath(root, dir);
   const prefix = `${dir}/`;
-  const docs = (await buildIndex(root)).filter((d) => d.path.startsWith(prefix) && !d.path.slice(prefix.length).includes('/'));
-  return docs.map((d) => {
-    const fm = d.content.match(/^---\n(?:[\s\S]*?\n)?---(?:\n|$)/)?.[0] ?? '';
-    const rows = parseProps(fm) ?? [];
-    const props = Object.fromEntries(rows.map((r) => [r.key, r.list ?? r.value]));
-    // First image in the body (Markdown or Obsidian syntax), for gallery cards that have no cover property.
-    const body = d.content.slice(fm.length);
-    const image = body.match(/!\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]|!\[[^\]\n]*\]\(([^)\s]+)\)/);
-    return { path: d.path, name: d.name, mtime: d.mtime, props, icon: props.icon ?? '', cover: props.cover ?? '', image: image ? (image[1] ?? image[2]).trim() : '' };
-  });
+  return (await buildIndex(root)).filter((d) => d.path.startsWith(prefix) && !d.path.slice(prefix.length).includes('/'));
+}
+
+async function folderRows(root, folder) {
+  const docs = await rowDocs(root, folder);
+  return Promise.all(
+    docs.map(async (d) => {
+      const fm = d.content.match(FRONTMATTER)?.[0] ?? '';
+      const rows = parseProps(fm) ?? [];
+      const props = Object.fromEntries(rows.map((r) => [r.key, r.list ?? r.value]));
+      // First image in the body (Markdown or Obsidian syntax), for gallery cards that have no cover property.
+      const body = d.content.slice(fm.length);
+      const image = body.match(/!\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]|!\[[^\]\n]*\]\(([^)\s]+)\)/);
+      // Birth time for "Created time"; file systems without one report 0, then the edit time stands in.
+      const info = await statOrNull(notePath(root, d.path));
+      const ctime = info?.birthtimeMs || d.mtime;
+      return { path: d.path, name: d.name, mtime: d.mtime, ctime, props, icon: props.icon ?? '', cover: props.cover ?? '', image: image ? (image[1] ?? image[2]).trim() : '' };
+    }),
+  );
+}
+
+// Renames a property in every row of a database (or removes it when `to` is empty), keeping the rest of each note.
+async function renameRowsProp(root, folder, from, to) {
+  if (typeof from !== 'string' || !from || typeof to !== 'string') throw new HttpError(400, 'from and to must be text');
+  if (to && !validPropName(to)) throw new HttpError(400, 'that property name is not allowed');
+  let changed = 0;
+  for (const d of await rowDocs(root, folder)) {
+    const full = notePath(root, d.path);
+    const content = await readFile(full, 'utf8');
+    const fm = content.match(FRONTMATTER)?.[0];
+    if (!fm) continue;
+    const next = renameProp(fm, from, to);
+    if (next === fm) continue;
+    await atomicWrite(full, next + content.slice(fm.length));
+    changed++;
+  }
+  return { changed };
 }
 
 // Like Obsidian: relative to the note, then from the vault root, then the shortest path with that file name.
@@ -446,6 +489,23 @@ async function handle(req, res, root) {
 
     case 'GET /api/db':
       return send(res, 200, { rows: await folderRows(root, q('folder')) });
+
+    case 'POST /api/db/prop': {
+      const body = await readJson(req);
+      if (typeof body.folder !== 'string' || !body.folder) throw new HttpError(400, 'folder is required');
+      return send(res, 200, await renameRowsProp(root, body.folder, body.from, body.to ?? ''));
+    }
+
+    // Pages that hold a database block (with a source folder): the choices of the "insert database" menu.
+    case 'GET /api/databases': {
+      const databases = [];
+      for (const d of await buildIndex(root)) {
+        const text = extractDatabase(d.content);
+        const source = text === null ? '' : parseDb(text).source;
+        if (source) databases.push({ path: d.path, name: d.name, source });
+      }
+      return send(res, 200, { databases });
+    }
 
     case 'GET /api/resolve': {
       const docs = await buildIndex(root);
