@@ -1,5 +1,5 @@
-# Your notes are personal: they stay on this computer.
-notes/
+# Deleted notes (Vault moves them here) are not kept in the repository.
+notes/.trash/
 
 # Build output and dependencies
 Vault.exe
