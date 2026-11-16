@@ -1,0 +1,9 @@
+# Your notes are personal: they stay on this computer.
+notes/
+
+# Build output and dependencies
+Vault.exe
+sea-config.json
+sea-prep.blob
+node_modules/
+*.log

@@ -1,0 +1,11 @@
+{
+  "name": "vault",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node app/server.mjs",
+    "build:exe": "node app/build-exe.mjs",
+    "test": "node --test \"app/test/*.test.mjs\""
+  }
+}
