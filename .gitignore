@@ -2,8 +2,6 @@
 notes/.trash/
 
 # Build output and dependencies
-Vault.exe
-sea-config.json
-sea-prep.blob
+dist/
 node_modules/
 *.log

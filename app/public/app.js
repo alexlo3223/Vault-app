@@ -2149,16 +2149,9 @@ blocksEl.addEventListener('contextmenu', (e) => {
   openMenu(SLASH.filter((it) => !(nested && it.type === 'columns')), { left: e.clientX, top: e.clientY, bottom: e.clientY }, insertPicker(b));
 });
 
-// Heartbeat for Vault.exe, which stops itself after the window closes (see app/launcher.cjs).
-// The first ping goes out at once, so a reload (which sends bye) is seen as alive before the launcher's grace ends.
-const ping = () => fetch('/api/ping').catch(() => {});
-ping();
-setInterval(ping, 5000);
-addEventListener('pagehide', () => navigator.sendBeacon('/api/bye'));
-
 try {
   await loadTree();
   await route();
 } catch {
-  showEmpty('Can’t reach the Vault server. Start it with: node app/server.mjs');
+  showEmpty('Can’t load your notes. Restart Vault and try again.');
 }

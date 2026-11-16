@@ -87,17 +87,6 @@ test('database rows refuse folders outside the vault', async () => {
   assert.equal(res.status, 400);
 });
 
-test('ping and bye reach the server object, so the desktop launcher can stop itself', async () => {
-  let pings = 0;
-  let byes = 0;
-  server.on('ping', () => pings++);
-  server.on('bye', () => byes++);
-  assert.equal((await fetch(`${base}/api/ping`)).status, 200);
-  assert.equal((await fetch(`${base}/api/bye`, { method: 'POST' })).status, 200);
-  assert.equal(pings, 1);
-  assert.equal(byes, 1);
-});
-
 test('every browser module in public/ is served (a missing route breaks the whole app)', async () => {
   const { readdir } = await import('node:fs/promises');
   const { fileURLToPath } = await import('node:url');

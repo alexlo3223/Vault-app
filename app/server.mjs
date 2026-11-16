@@ -447,15 +447,6 @@ async function handle(req, res, root) {
     case 'GET /api/db':
       return send(res, 200, { rows: await folderRows(root, q('folder')) });
 
-    // The desktop launcher listens to these to stop itself when the window closes; npm start ignores them.
-    case 'GET /api/ping':
-      req.socket.server?.emit('ping');
-      return send(res, 200, { ok: true });
-
-    case 'POST /api/bye':
-      req.socket.server?.emit('bye');
-      return send(res, 200, { ok: true });
-
     case 'GET /api/resolve': {
       const docs = await buildIndex(root);
       return send(res, 200, { path: makeResolver(docs)(q('link'), q('from')) });

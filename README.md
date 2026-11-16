@@ -1,6 +1,6 @@
 # Vault
 
-Vault es una aplicación de notas que se ejecuta en tu PC y se usa desde el navegador. Las notas son archivos Markdown normales (`.md`) dentro de una carpeta, así que también se abren con Obsidian.
+Vault es una aplicación de notas para Windows. Se instala como cualquier programa y se abre en su propia ventana. Las notas son archivos Markdown normales (`.md`) dentro de una carpeta, así que también se abren con Obsidian.
 
 ## Qué hace
 
@@ -12,74 +12,89 @@ Vault es una aplicación de notas que se ejecuta en tu PC y se usa desde el nave
 - **Menú de insertar**: escribe `/` o haz clic derecho en un bloque; las opciones están agrupadas por secciones con iconos.
 - **Vistas**: resumen de notas, vista de grafo de enlaces y búsqueda con `Ctrl+K`.
 - **Propiedades** de la nota (`icon`, `cover`, `width`…) en el frontmatter YAML.
-- **Ejecutable para Windows** (`Vault.exe`): abre la app en su propia ventana sin consola y se cierra solo al cerrar la ventana.
+- **Aplicación de escritorio**: instalador o versión portable, con su propia ventana; no hace falta navegador ni Node.js.
 
-Todo funciona en local: el servidor solo escucha en `127.0.0.1` y no envía tus notas a ningún sitio.
+Todo funciona en local: tus notas no salen de tu PC.
 
-## Requisitos
+## Instalar Vault
 
-- **Node.js 22 o superior**: descárgalo de https://nodejs.org (versión LTS).
-- **Microsoft Edge o Google Chrome**, para ver la app.
+### Opción 1: usar `Vault.exe` del repositorio (sin instalar)
 
-## Cómo ejecutarlo en el PC
-
-1. **Descarga el proyecto.** Con git:
+1. Instala **Git** y **Git LFS** (https://git-lfs.com; en Windows viene con *Git for Windows*).
+2. Clona el proyecto y activa LFS (una sola vez):
    ```
+   git lfs install
    git clone https://github.com/alexlo3223/Vault-app.git
    cd Vault-app
    ```
-   O descárgalo como ZIP desde GitHub (botón *Code* → *Download ZIP*) y descomprímelo.
+   Si ya lo tenías clonado sin LFS, ejecuta `git lfs pull` dentro de la carpeta. `Vault.exe` debe pesar unos 110 MB; si pesa unos cientos de bytes, es solo un puntero de LFS y falta `git lfs pull`.
+3. Haz doble clic en **`Vault.exe`** (en la raíz del proyecto). Se abre en su propia ventana.
+4. Windows puede avisar de que el programa no está firmado (SmartScreen): pulsa *Más información* → *Ejecutar de todas formas*.
 
-2. **Crea la carpeta de notas.** Vault guarda las notas en una carpeta llamada `notes` dentro del proyecto. Si no existe, créala:
+También puedes descargar `Vault.exe` suelto desde la página de *Releases* de GitHub, sin clonar nada.
+
+### Opción 2: instalador
+
+Si generas el instalador (ver *Generar los ejecutables*), obtendrás `dist/Vault Setup 1.0.0.exe`: crea accesos directos en el Escritorio y en el menú Inicio, y se desinstala desde *Configuración → Aplicaciones*.
+
+### Dónde se guardan las notas
+
+Vault guarda las notas en **`Documentos\Vault`**. Desde el menú:
+- *Archivo → Abrir carpeta de notas* abre esa carpeta en el Explorador.
+- *Archivo → Cambiar carpeta de notas…* apunta Vault a otra carpeta (por ejemplo tu bóveda de Obsidian). La app se reinicia y la recuerda.
+
+Solo puede haber una ventana de Vault abierta: si lo abres otra vez, se muestra la que ya estaba.
+
+### Generar los ejecutables (para quien mantiene el proyecto)
+
+1. Instala Node.js 22 o superior y ejecuta `npm install`.
+2. Genera los archivos:
    ```
-   mkdir notes
+   npm run dist
    ```
-   Puedes apuntar a otra carpeta (por ejemplo tu bóveda de Obsidian) con `--root`, ver más abajo.
-
-3. **Arranca el servidor.** En la carpeta del proyecto:
+   Tarda unos minutos. Crea `dist/Vault Setup 1.0.0.exe` (instalador) y `dist/Vault-1.0.0-portable.exe` (portable).
+3. Para actualizar el `Vault.exe` del repositorio, copia el portable a la raíz con ese nombre y sube el cambio:
    ```
-   npm start
+   copy dist\Vault-1.0.0-portable.exe Vault.exe
+   git add Vault.exe
+   git commit -m "Actualizar Vault.exe"
+   git push
    ```
-   Verás `Vault app: http://localhost:4321`. Deja esa ventana abierta mientras uses Vault.
+   Git LFS (configurado en `.gitattributes`) guarda el `.exe` automáticamente.
 
-4. **Abre la app.** En Edge o Chrome ve a http://localhost:4321.
-   Para instalarla como app: en la barra de direcciones pulsa el icono *Instalar* (en Edge: *Aplicaciones → Instalar esta página como aplicación*). Se abrirá en su propia ventana.
+## Desarrollo
 
-5. **Para parar Vault**, cierra la ventana de la consola (o pulsa `Ctrl+C` en ella).
-
-### Opciones
-
-- Cambiar el puerto: `PORT=5000 npm start` (en Windows PowerShell: `$env:PORT=5000; npm start`).
-- Cambiar la carpeta de notas: `node app/server.mjs --root "C:\Ruta\a\mis\notas"`.
-
-### Ejecutable de Windows (sin consola)
-
-1. Genera el ejecutable en la carpeta del proyecto:
-   ```
-   npm run build:exe
-   ```
-   Tarda un minuto y crea `Vault.exe` (unos 93 MB).
-2. Haz doble clic en `Vault.exe`. Se abre la app en su propia ventana. Al cerrarla, el proceso se detiene solo.
-3. El exe necesita las carpetas `app` y `notes` a su lado: si lo mueves, muévelas también.
-4. Windows puede avisar de que el programa no está firmado (SmartScreen). Pulsa *Más información* → *Ejecutar de todas formas*.
-
-## Comprobar que todo funciona
+Requisitos: **Node.js 22 o superior** (https://nodejs.org, versión LTS).
 
 ```
-npm test
+git clone https://github.com/alexlo3223/Vault-app.git
+cd Vault-app
+npm install
 ```
-Debe terminar con todas las pruebas en verde.
+
+| Comando | Qué hace |
+|---|---|
+| `npm run desktop` | Abre la app de escritorio sin empaquetar (usa la carpeta de notas configurada). |
+| `npm run dist` | Genera el instalador y el portable en `dist/`. Tarda unos minutos la primera vez. |
+| `npm start` | Modo navegador: servidor en http://localhost:4321 con las notas de `notes/`. |
+| `npm run icon` | Vuelve a generar `app/desktop/icon.png` a partir de `app/public/icon.svg`. |
+| `npm test` | Pruebas automáticas; deben terminar todas en verde. |
+
+En modo navegador puedes cambiar el puerto con `--port 5000` y la carpeta con `--root` (`node app/server.mjs --root "C:\Ruta\a\mis\notas"`).
+
+Si al ejecutar `npm run desktop` desde el terminal de VS Code Electron se comporta como Node (sin ventana), es porque VS Code define `ELECTRON_RUN_AS_NODE`: bórrala antes (`Remove-Item Env:ELECTRON_RUN_AS_NODE` en PowerShell).
 
 ## Estructura
 
 | Carpeta | Contenido |
 |---|---|
-| `app/server.mjs` | Servidor local: lee y guarda las notas, sirve la app. |
+| `app/desktop/` | La app de escritorio (Electron): ventana, menú, carpeta de notas e icono. |
+| `app/server.mjs` | Servidor interno: lee y guarda las notas y sirve la interfaz. |
 | `app/public/` | La interfaz: editor, bases de datos, vistas, estilos. |
 | `app/lib/` | Búsqueda e índice de enlaces entre notas. |
 | `app/test/` | Pruebas automáticas. |
-| `app/launcher.cjs` | Arranque de `Vault.exe`. |
-| `notes/` | Tus notas (no se suben a GitHub). |
+| `notes/` | Notas de ejemplo para el modo navegador (`npm start`). |
+| `scripts/` | Utilidades de desarrollo (generar el icono). |
 
 ## Límites conocidos
 
@@ -87,3 +102,4 @@ Debe terminar con todas las pruebas en verde.
 - Los vídeos no se pueden adelantar en el reproductor (no hay soporte de rangos HTTP).
 - Las bases de datos se recargan al cambiar algo de la página.
 - Solo hay una persona usando la app: no tiene cuentas ni acceso desde otros equipos.
+- El ejecutable no está firmado, así que Windows muestra el aviso de SmartScreen la primera vez.
