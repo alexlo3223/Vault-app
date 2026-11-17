@@ -4,12 +4,37 @@ import { app, BrowserWindow, dialog, Menu, shell } from 'electron';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { appendFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createApp } from '../server.mjs';
 import { seedNotes } from './seed.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ICON = join(HERE, 'icon.png');
 const CONFIG = () => join(app.getPath('userData'), 'config.json');
+// Startup diary in the data folder (%APPDATA%\Vault\startup.log): one line per step, so a silent exit leaves a trace.
+// It is rewritten on every launch, so it only ever holds the last run.
+const STARTUP_LOG = () => join(app.getPath('userData'), 'startup.log');
+let logStarted = false;
+function log(step, detail = '') {
+  try {
+    const line = `${new Date().toISOString()} ${step}${detail ? ` ${detail}` : ''}\n`;
+    appendFileSync(STARTUP_LOG(), line, logStarted ? undefined : { flag: 'w' });
+    logStarted = true;
+  } catch (err) {
+    // logging must never stop the app; the reason is kept next to the system temp folder instead
+    try {
+      appendFileSync(join(tmpdir(), 'vault-startup-error.txt'), `${step}: ${err?.stack ?? err}\n`);
+    } catch {
+      // nothing else to do
+    }
+  }
+}
+process.on('uncaughtException', (err) => log('uncaughtException', err?.stack ?? String(err)));
+process.on('unhandledRejection', (err) => log('unhandledRejection', err?.stack ?? String(err)));
+log('start', `packaged=${app.isPackaged} argv=${process.argv.join(' ')}`);
+app.on('will-quit', () => log('will-quit'));
+app.on('quit', (_e, code) => log('quit', `exitCode=${code}`));
 // The tutorial notes: beside the app when installed (extraResources in package.json), the repo's own when not.
 const TUTORIAL = () => (app.isPackaged ? join(process.resourcesPath, 'notes') : join(HERE, '..', '..', 'notes'));
 
@@ -97,7 +122,11 @@ function createWindow(origin) {
     show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    log('window ready-to-show');
+    win.show();
+  });
+  win.webContents.on('did-fail-load', (_e, code, desc) => log('page failed to load', `${code} ${desc}`));
   // Links to the web open in the system browser; nothing else may open a new window.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isExternal(url) && !url.startsWith(origin)) shell.openExternal(url);
@@ -112,7 +141,9 @@ function createWindow(origin) {
   win.loadURL(`${origin}/`);
 }
 
-if (!app.requestSingleInstanceLock()) {
+const gotLock = app.requestSingleInstanceLock();
+log('single-instance lock', gotLock ? 'acquired' : 'NOT acquired: another instance is treated as running, quitting');
+if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
@@ -122,28 +153,39 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    log('ready', `userData=${app.getPath('userData')}`);
     const config = await readConfig();
     notesDir = config.notesDir ?? join(app.getPath('documents'), 'Vault');
+    log('notes folder', notesDir);
     try {
       await mkdir(notesDir, { recursive: true });
       // First run (no folder remembered yet): an empty folder gets the tutorial. The folder is then remembered,
       // so emptying it later does not bring the tutorial back. A failed copy must not stop the app.
       if (!config.notesDir) {
-        await seedNotes(TUTORIAL(), notesDir).catch((err) => console.error(err));
+        const seeded = await seedNotes(TUTORIAL(), notesDir).catch((err) => (log('seed failed', err.stack ?? String(err)), false));
+        log('tutorial copied', String(seeded));
         await saveConfig({ notesDir });
       }
     } catch (err) {
+      log('notes folder error', err.stack ?? String(err));
       dialog.showErrorBox('Vault', `No se puede usar la carpeta de notas:\n${notesDir}\n\n${err.message}`);
       app.quit();
       return;
     }
     server = createApp({ root: notesDir });
     await new Promise((ok, fail) => server.once('error', fail).listen(0, '127.0.0.1', ok));
+    log('server listening', `port=${server.address().port}`);
     Menu.setApplicationMenu(buildMenu());
     createWindow(`http://127.0.0.1:${server.address().port}`);
+    log('window created');
+  }).catch((err) => {
+    log('startup failed', err?.stack ?? String(err));
+    dialog.showErrorBox('Vault', `Vault no pudo arrancar. Detalles en:\n${STARTUP_LOG()}\n\n${err?.message ?? err}`);
+    app.quit();
   });
 
   app.on('window-all-closed', () => {
+    log('window-all-closed');
     server?.close();
     app.quit();
   });

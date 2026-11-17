@@ -12,7 +12,7 @@ Vault es una aplicación de notas para Windows. Se instala como cualquier progra
 - **Menú de insertar**: escribe `/` o haz clic derecho en un bloque; las opciones están agrupadas por secciones con iconos.
 - **Vistas**: resumen de notas, vista de grafo de enlaces y búsqueda con `Ctrl+K`.
 - **Propiedades** de la nota (`icon`, `cover`, `width`…) en el frontmatter YAML.
-- **Aplicación de escritorio**: instalador o versión portable, con su propia ventana; no hace falta navegador ni Node.js.
+- **Aplicación de escritorio**: instalador, con su propia ventana; no hace falta navegador ni Node.js.
 
 Todo funciona en local: tus notas no salen de tu PC.
 
@@ -46,10 +46,7 @@ Dónde se guarda, para quien abra los archivos a mano o en Obsidian:
 
 ## Instalar Vault
 
-Descarga Vault desde la página de **Releases** del proyecto (https://github.com/alexlo3223/Vault-app/releases). Hay dos archivos:
-
-- **`Vault-Setup-<versión>.exe`**: instalador. Crea accesos directos en el Escritorio y en el menú Inicio, y se desinstala desde *Configuración → Aplicaciones*.
-- **`Vault-<versión>-portable.exe`**: sin instalar. Haz doble clic y se abre en su propia ventana.
+Descarga el instalador **`Vault-Setup-<versión>.exe`** desde la página de **Releases** del proyecto (https://github.com/alexlo3223/Vault-app/releases). Crea accesos directos en el Escritorio y en el menú Inicio, y se desinstala desde *Configuración → Aplicaciones*. Es la versión que se abre rápido: no hay versión portable, porque tardaba casi 9 segundos en abrirse.
 
 Windows puede avisar de que el programa no está firmado (SmartScreen): pulsa *Más información* → *Ejecutar de todas formas*.
 
@@ -68,7 +65,7 @@ Solo puede haber una ventana de Vault abierta: si lo abres otra vez, se muestra 
    ```
    npm run dist
    ```
-   Tarda unos minutos. Crea `dist/Vault Setup <versión>.exe` (instalador) y `dist/Vault-<versión>-portable.exe` (portable).
+   Tarda unos minutos. Crea `dist/Vault Setup <versión>.exe` (el instalador que se publica).
 3. Para publicar una versión, sube `version` en `package.json`, confirma y crea en GitHub una *Release* con la etiqueta `v<versión>`, adjuntando los dos `.exe` de `dist/`. Los ejecutables no se guardan en el repositorio (`.gitignore` los excluye).
 
 ## Desarrollo
@@ -84,7 +81,7 @@ npm install
 | Comando | Qué hace |
 |---|---|
 | `npm run desktop` | Abre la app de escritorio sin empaquetar (usa la carpeta de notas configurada). |
-| `npm run dist` | Genera el instalador y el portable en `dist/`. Tarda unos minutos la primera vez. |
+| `npm run dist` | Genera el instalador en `dist/`. Tarda unos minutos la primera vez. |
 | `npm start` | Modo navegador: servidor en http://localhost:4321 con las notas de `notes/`. |
 | `npm run icon` | Vuelve a generar `app/desktop/icon.png` a partir de `app/public/icon.svg`. |
 | `npm run art` | Vuelve a dibujar los banners, portadas e iconos del tutorial en `notes/attachments/`. |
