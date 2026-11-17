@@ -41,6 +41,8 @@ const ICONS = {
   board: '<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="10" rx="1.5"/><rect x="17" y="4" width="4" height="13" rx="1.5"/>',
   hash: '<path d="M5 9h15M4 15h15M10 4l-2 16M16 4l-2 16"/>',
   donut: '<path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 3v9h9"/>',
+  bar: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  line: '<path d="M3 17l5-6 4 3 4-7 5 5"/><path d="M3 21h18"/>',
   subpages: '<path d="M4 6h10M9 12h11M9 18h11"/><path d="M4 6l-2 2 2 2"/>',
   smile: '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>',
   columns: '<rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/>',

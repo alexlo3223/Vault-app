@@ -1883,6 +1883,8 @@ const SLASH = [
   { group: 'Base de datos', label: 'Lista', type: 'database', view: 'list', icon: 'list', keys: 'database list rows filas', hint: '▦' },
   { group: 'Base de datos', label: 'Número', type: 'database', view: 'number', icon: 'hash', keys: 'database number chart count sum total numero grafico suma', hint: '#' },
   { group: 'Base de datos', label: 'Gráfico de donut', type: 'database', view: 'donut', icon: 'donut', keys: 'database donut pie chart share grafico tarta', hint: '◔' },
+  { group: 'Base de datos', label: 'Gráfico de barras', type: 'database', view: 'bar', icon: 'bar', keys: 'database bar chart barras columnas grafico fecha mes', hint: '▮' },
+  { group: 'Base de datos', label: 'Gráfico de líneas', type: 'database', view: 'line', icon: 'line', keys: 'database line chart lineas grafico evolucion fecha', hint: '⟋' },
   { group: 'Medios', label: 'Imagen', type: 'image', icon: 'image', keys: 'image picture photo upload foto subir', hint: '![[ ]]' },
   { group: 'Medios', label: 'Vídeo', type: 'media', kind: 'video', icon: 'video', keys: 'video movie clip mp4 upload subir', hint: '▶' },
   { group: 'Medios', label: 'Audio', type: 'media', kind: 'audio', icon: 'audio', keys: 'sound music mp3 upload sonido musica subir', hint: '♪' },

@@ -13,17 +13,18 @@
 //   agg: sum
 
 import { COLORS, TYPE, newProp } from './properties.mjs';
-import { renameInFormula } from './formula.mjs';
+import { renameInFormula, toDate } from './formula.mjs';
 
-export const VIEW_TYPES = ['table', 'board', 'gallery', 'list', 'number', 'donut'];
+export const VIEW_TYPES = ['table', 'board', 'gallery', 'list', 'number', 'donut', 'bar', 'line'];
 export const AGGS = ['count', 'sum', 'avg', 'min', 'max'];
 export const OPS = ['!=', '>=', '<=', '=', '>', '<', 'contains', '!empty', 'empty'];
+export const BUCKETS = ['day', 'week', 'month', 'year'];
 
-const VIEW_KEYS = new Set(['name', 'view', 'show', 'filter', 'sort', 'group', 'value', 'agg', 'preview', 'size', 'fit']);
+const VIEW_KEYS = new Set(['name', 'view', 'show', 'filter', 'sort', 'group', 'value', 'agg', 'bucket', 'preview', 'size', 'fit']);
 const LINE = /^\s*([a-z]+)\s*:\s*(.*?)\s*$/i;
 const FILTER = new RegExp(`^(.*?)\\s+(${OPS.join('|')})(?:\\s+(.*))?$`);
 
-export const newView = (view = 'table') => ({ name: '', view, show: [], filter: [], sort: '', group: '', value: '', agg: '', preview: '', size: '', fit: '' });
+export const newView = (view = 'table') => ({ name: '', view, show: [], filter: [], sort: '', group: '', value: '', agg: '', bucket: '', preview: '', size: '', fit: '' });
 
 // Property schema (see properties.mjs): "prop: Name" starts a property, the keys below configure it. These keys never
 // appear in a view, so a line always belongs to one or the other.
@@ -87,6 +88,7 @@ export function parseDb(text = '') {
       const f = parseFilter(value);
       if (f) cur.filter.push(f);
     } else if (key === 'agg') cur[key] = AGGS.includes(value) ? value : '';
+    else if (key === 'bucket') cur[key] = BUCKETS.includes(value) ? value : '';
     else cur[key] = value;
   }
   if (!cfg.views.length) cfg.views.push(newView());
@@ -174,7 +176,7 @@ export function serializeDb(cfg) {
     out.push(`view: ${v.view}`);
     if (v.show.length) out.push(`show: ${v.show.join(', ')}`);
     for (const f of v.filter) out.push(`filter: ${formatFilter(f)}`);
-    for (const k of ['sort', 'group', 'value', 'agg', 'preview', 'size', 'fit']) if (v[k]) out.push(`${k}: ${v[k]}`);
+    for (const k of ['sort', 'group', 'value', 'agg', 'bucket', 'preview', 'size', 'fit']) if (v[k]) out.push(`${k}: ${v[k]}`);
   });
   return out.join('\n');
 }
@@ -242,4 +244,43 @@ export function groupRows(rows, key) {
     groups.get(k).push(r);
   }
   return groups;
+}
+
+// Notes grouped by a date property, one point per day, week (from Monday), month or year, in date order.
+// Periods with no notes in between are kept with 0, so a line does not jump over them. Notes whose date is missing
+// or unreadable are left out. Returns [{ label, value }].
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+function periodStart(d, bucket) {
+  if (bucket === 'year') return new Date(d.getFullYear(), 0, 1);
+  if (bucket === 'month') return new Date(d.getFullYear(), d.getMonth(), 1);
+  if (bucket === 'week') return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+const label = (start, bucket) => (bucket === 'year' ? `${start.getFullYear()}` : bucket === 'month' ? ymd(start).slice(0, 7) : ymd(start));
+function nextPeriod(start, bucket) {
+  if (bucket === 'year') return new Date(start.getFullYear() + 1, 0, 1);
+  if (bucket === 'month') return new Date(start.getFullYear(), start.getMonth() + 1, 1);
+  return new Date(start.getFullYear(), start.getMonth(), start.getDate() + (bucket === 'week' ? 7 : 1));
+}
+export function bucketRows(rows, key, bucket, value, agg = 'count') {
+  if (!BUCKETS.includes(bucket)) return [];
+  const groups = new Map();
+  for (const r of rows) {
+    const d = toDate(r.props[key]);
+    if (!d) continue;
+    const start = periodStart(d, bucket);
+    const k = label(start, bucket);
+    if (!groups.has(k)) groups.set(k, { start, items: [] });
+    groups.get(k).items.push(r);
+  }
+  if (!groups.size) return [];
+  const first = [...groups.values()].reduce((a, b) => (b.start < a.start ? b : a)).start;
+  const last = [...groups.values()].reduce((a, b) => (b.start > a.start ? b : a)).start;
+  const points = [];
+  for (let s = first; s <= last; s = nextPeriod(s, bucket)) {
+    const g = groups.get(label(s, bucket));
+    points.push({ label: label(s, bucket), value: g ? aggregate(g.items, value, agg) : 0 });
+  }
+  return points;
 }

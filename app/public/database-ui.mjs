@@ -4,15 +4,16 @@
 import { icon } from './views.js';
 import { isHttps } from './blocks.mjs';
 import { isImageRef } from './cover.mjs';
-import { AGGS, OPS, VIEW_TYPES, aggregate, extractDatabase, filterRows, groupRows, newView, parseDb, parseSort, pickViews, renamePropInDb, serializeDb, sortRows } from './database.mjs';
+import { AGGS, BUCKETS, OPS, VIEW_TYPES, aggregate, bucketRows, extractDatabase, filterRows, groupRows, newView, parseDb, parseSort, pickViews, renamePropInDb, serializeDb, sortRows } from './database.mjs';
 import { computeRows, flatRows, fullSchema, isStored, newProp, nextColor, writeValue } from './properties.mjs';
 import { addPropertyMenu, editValue, formulaEditor, onPopoverClose, popoverOpen, propertyMenu, typeIcon, valueEl } from './props-ui.mjs';
 
 const enc = encodeURIComponent;
 const SVG = 'http://www.w3.org/2000/svg';
 const COLORS = ['#ffc857', '#7ab8ff', '#6fd39a', '#ff6b6b', '#c79bff', '#ff9f5a', '#8ee3e3'];
-const VIEW_LABEL = { table: 'Tabla', board: 'Tablero', gallery: 'Galería', list: 'Lista', number: 'Número', donut: 'Donut' };
-const VIEW_ICON = { table: 'table', board: 'board', gallery: 'grid', list: 'list', number: 'hash', donut: 'donut' };
+const VIEW_LABEL = { table: 'Tabla', board: 'Tablero', gallery: 'Galería', list: 'Lista', number: 'Número', donut: 'Donut', bar: 'Barras', line: 'Líneas' };
+const VIEW_ICON = { table: 'table', board: 'board', gallery: 'grid', list: 'list', number: 'hash', donut: 'donut', bar: 'bar', line: 'line' };
+const BUCKET_LABEL = { day: 'Día', week: 'Semana', month: 'Mes', year: 'Año' };
 const AGG_LABEL = { count: 'Recuento', sum: 'Suma', avg: 'Media', min: 'Mínimo', max: 'Máximo' };
 
 const el = (tag, cls = '', text = '') => {
@@ -309,6 +310,9 @@ function viewContent(view, shown, props, o) {
       return numberView(view, shown);
     case 'donut':
       return donutView(view, shown);
+    case 'bar':
+    case 'line':
+      return chartView(view, shown);
     default:
       return tableView(view, shown, props, o);
   }
@@ -497,6 +501,79 @@ function listView(view, shown, props, o) {
   return list;
 }
 
+// Bars or a line: one point per group, or per day/week/month/year when the view has a `bucket` (then `group` is a date).
+// Drawn in SVG attributes only (no style attributes, the page's CSP forbids them). Each point has a tooltip.
+function chartEl(tag, attrs = {}, text = '') {
+  const node = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+  if (text) node.textContent = text;
+  return node;
+}
+function chartView(view, shown) {
+  if (!view.group) return el('p', 'db-empty', 'Elige una propiedad en “Agrupar por”, en los ajustes (⚙).');
+  const agg = AGGS.includes(view.agg) ? view.agg : 'count';
+  const points = view.bucket
+    ? bucketRows(shown, view.group, view.bucket, view.value, agg)
+    : [...groupRows(shown, view.group)].map(([k, items]) => ({ label: k || 'Sin valor', value: aggregate(items, view.value, agg) }));
+  if (!points.length) {
+    return el('p', 'db-empty', view.bucket ? 'Ninguna nota tiene una fecha válida en esa propiedad.' : 'Ninguna nota tiene valor en esa propiedad.');
+  }
+  const max = Math.max(1, ...points.map((p) => p.value));
+  const W = 600;
+  const H = 240;
+  const L = 44;
+  const R = 12;
+  const T = 12;
+  const B = 30;
+  const plotW = W - L - R;
+  const plotH = H - T - B;
+  const yOf = (v) => T + plotH - (v / max) * plotH;
+  const xOf = (i) => (view.view === 'line' ? (points.length === 1 ? L + plotW / 2 : L + (i * plotW) / (points.length - 1)) : L + plotW * ((i + 0.5) / points.length));
+  const total = points.reduce((s, p) => s + p.value, 0);
+  const svg = chartEl('svg', {
+    viewBox: `0 0 ${W} ${H}`,
+    role: 'img',
+    class: 'db-chart',
+    'aria-label': `${view.view === 'line' ? 'Gráfico de líneas' : 'Gráfico de barras'}: ${points.length} ${view.bucket ? 'periodos' : 'grupos'}, total ${total.toLocaleString()}`,
+  });
+  // Horizontal guides at 0, half and the maximum, with their values.
+  for (const v of [0, max / 2, max]) {
+    svg.append(chartEl('line', { x1: L, x2: W - R, y1: yOf(v), y2: yOf(v), class: 'db-chart-grid' }));
+    svg.append(chartEl('text', { x: L - 6, y: yOf(v) + 4, 'text-anchor': 'end', class: 'db-chart-tick' }, Number.isInteger(v) ? v.toLocaleString() : v.toFixed(1)));
+  }
+  const color = COLORS[0];
+  if (view.view === 'line') {
+    svg.append(chartEl('polyline', { points: points.map((p, i) => `${xOf(i)},${yOf(p.value)}`).join(' '), fill: 'none', stroke: color, 'stroke-width': 2, class: 'db-chart-line' }));
+  }
+  const band = plotW / points.length;
+  points.forEach((p, i) => {
+    const cx = xOf(i);
+    const tip = chartEl('title', {}, `${p.label}: ${p.value.toLocaleString()}`);
+    if (view.view === 'line') {
+      const dot = chartEl('circle', { cx, cy: yOf(p.value), r: 3.5, fill: color });
+      dot.append(tip);
+      svg.append(dot);
+    } else {
+      const w = Math.max(4, band * 0.6);
+      const h = (p.value / max) * plotH;
+      const bar = chartEl('rect', { x: cx - w / 2, y: T + plotH - h, width: w, height: h, fill: color, rx: 2 });
+      bar.append(tip);
+      svg.append(bar);
+    }
+  });
+  // As many labels as fit without touching (a date label is about 84 units wide), so long lists stay readable.
+  const every = Math.ceil(points.length / Math.max(2, Math.floor(plotW / 84)));
+  // A line starts and ends on the plot's edges: its end labels are aligned inwards so they are not cut off.
+  points.forEach((p, i) => {
+    if (i % every !== 0) return;
+    const anchor = view.view !== 'line' || points.length === 1 ? 'middle' : i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle';
+    svg.append(chartEl('text', { x: xOf(i), y: H - 10, 'text-anchor': anchor, class: 'db-chart-tick' }, p.label));
+  });
+  const box = el('div', 'db-chart-box');
+  box.append(svg);
+  return box;
+}
+
 function numberView(view, shown) {
   const agg = AGGS.includes(view.agg) ? view.agg : 'count';
   const value = aggregate(shown, view.value, agg);
@@ -621,10 +698,14 @@ function settingsEl(b, cfg, i, keys, ctx) {
     }, 'Sentido del orden')));
   }
 
-  if (['board', 'donut'].includes(v.view)) {
+  if (['board', 'donut', 'bar', 'line'].includes(v.view)) {
     panel.append(field('Agrupar por', select(keyOpts(true), v.group, (x) => { v.group = x; save_(); }, 'Agrupar por')));
   }
-  if (['number', 'donut'].includes(v.view)) {
+  if (['bar', 'line'].includes(v.view)) {
+    const buckets = [['', 'Sin fechas (una barra por valor)'], ...BUCKETS.map((b) => [b, BUCKET_LABEL[b]])];
+    panel.append(field('Intervalo', select(buckets, v.bucket || '', (x) => { v.bucket = x; save_(); }, 'Intervalo de fechas')));
+  }
+  if (['number', 'donut', 'bar', 'line'].includes(v.view)) {
     panel.append(field('Valor', select(keyOpts(true), v.value, (x) => { v.value = x; save_(); }, 'Propiedad del valor')));
     panel.append(field('Calcular', select(AGGS.map((a) => [a, AGG_LABEL[a]]), v.agg || 'count', (x) => { v.agg = x; save_(); }, 'Cálculo')));
   }

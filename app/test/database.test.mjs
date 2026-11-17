@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregate, extractDatabase, filterRows, groupRows, newDatabasePage, parseDb, parseFilter, serializeDb, sortRows } from '../public/database.mjs';
+import { aggregate, bucketRows, extractDatabase, filterRows, groupRows, newDatabasePage, parseDb, parseFilter, serializeDb, sortRows } from '../public/database.mjs';
 
 const rows = [
   { name: 'Dune', props: { status: 'reading', pages: '412', author: 'Herbert' } },
@@ -197,4 +197,36 @@ test('an embed can show one view, several (as tabs), or all', async () => {
   assert.deepEqual(pickViews('', views), [0, 1, 2, 3, 4]);
   assert.deepEqual(pickViews(undefined, views), [0, 1, 2, 3, 4]);
   assert.deepEqual(pickViews('No existe', views), [0, 1, 2, 3, 4]);
+});
+
+test('bar and line views are read and written with their date bucket, and a wrong bucket is dropped', () => {
+  const cfg = parseDb('source: Libros\nview: line\ngroup: Fin\nvalue: Páginas\nagg: sum\nbucket: month');
+  assert.equal(cfg.views[0].view, 'line');
+  assert.equal(cfg.views[0].bucket, 'month');
+  assert.equal(parseDb('source: X\nview: bar\nbucket: decade').views[0].bucket, '');
+  assert.equal(parseDb('source: X\nview: pie').views[0].view, 'table', 'an unknown view is still a table');
+  const again = parseDb(serializeDb(cfg));
+  assert.deepEqual(again.views[0], cfg.views[0]);
+});
+
+test('notes are grouped by month, week, day or year; empty periods in between stay at 0', () => {
+  const dated = [
+    { name: 'a', props: { Fin: '2026-01-10', Páginas: '100' } },
+    { name: 'b', props: { Fin: '2026-01-20', Páginas: '50' } },
+    { name: 'c', props: { Fin: '2026-03-02', Páginas: '200' } },
+    { name: 'd', props: { Fin: '', Páginas: '9' } },
+    { name: 'e', props: { Fin: 'no es una fecha', Páginas: '9' } },
+  ];
+  assert.deepEqual(bucketRows(dated, 'Fin', 'month', 'Páginas', 'sum'), [
+    { label: '2026-01', value: 150 },
+    { label: '2026-02', value: 0 },
+    { label: '2026-03', value: 200 },
+  ]);
+  assert.deepEqual(bucketRows(dated, 'Fin', 'year', '', 'count'), [{ label: '2026', value: 3 }]);
+  // weeks start on Monday: 2026-01-10 is a Saturday, so its week starts on 2026-01-05
+  assert.equal(bucketRows(dated, 'Fin', 'week', '', 'count')[0].label, '2026-01-05');
+  // 10 Jan to 2 Mar 2026, both included: 22 + 28 + 2 days
+  assert.equal(bucketRows(dated, 'Fin', 'day', '', 'count').length, 52);
+  assert.deepEqual(bucketRows(dated, 'Fin', '', '', 'count'), [], 'without a bucket there are no date points');
+  assert.deepEqual(bucketRows([], 'Fin', 'month', '', 'count'), [], 'no notes, no points');
 });
