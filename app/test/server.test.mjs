@@ -228,3 +228,15 @@ test('a note exports as one standalone page to download; paths outside the vault
   assert.equal((await raw('GET', `/api/export?path=${encodeURIComponent('../secret.md')}`)).status, 400);
   assert.equal((await raw('GET', `/api/export?path=${encodeURIComponent('Nada.md')}`)).status, 404);
 });
+
+test('related notes and tag suggestions come from the vault text, and the note is checked first', async () => {
+  await put('Mundo/Dune.md', 'Dune es una novela de ciencia ficción sobre la especia y el desierto de Arrakis.\n');
+  await put('Mundo/Foundation.md', 'Foundation es una novela de ciencia ficción sobre imperios y una galaxia.\n');
+  await put('Mundo/Cocina.md', 'Bate los huevos con azúcar y hornea el bizcocho veinte minutos.\n');
+  const ok = await call('GET', `/api/related?path=${encodeURIComponent('Mundo/Dune.md')}`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.related[0].path, 'Mundo/Foundation.md');
+  assert.ok(!ok.data.related.some((r) => r.path === 'Cocina.md' || r.path === 'Mundo/Cocina.md'));
+  assert.ok(Array.isArray(ok.data.tags));
+  assert.equal((await call('GET', `/api/related?path=${encodeURIComponent('../x.md')}`)).status, 400);
+});

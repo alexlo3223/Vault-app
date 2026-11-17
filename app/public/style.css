@@ -286,6 +286,10 @@ button.list-row:hover { background: rgba(50, 56, 73, 0.4); color: #fff; }
 .tag:hover { border-color: var(--amber-line); color: var(--amber); }
 .content strong { color: #fff; font-weight: 600; }
 .blocks-end { height: 120px; cursor: text; }
+/* related notes under a page (loadRelated in app.js) */
+.related { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--hair); }
+.related-link { color: var(--t85); font-size: 14px; text-decoration: none; }
+.related-link:hover { color: var(--amber); }
 
 
 /* ---------- graph view ---------- */

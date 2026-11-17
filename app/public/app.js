@@ -7,6 +7,7 @@ import { addPropertyMenu, editValue, onPopoverClose, popoverOpen, propertyMenu, 
 import { icon, ago, renderOverview, renderGraphView } from './views.js';
 import { FRAME_KEYS, coverSrc, frameStyle, isImageRef, readCover, removePatch } from './cover.mjs';
 import { openCoverEditor } from './cover-ui.mjs';
+import { summarize } from './similar.mjs';
 
 // ---------- small helpers ----------
 const $ = (sel) => document.querySelector(sel);
@@ -643,6 +644,7 @@ async function openPage(path) {
   renderTree();
   rerender();
   loadRowDb(path);
+  loadRelated(path);
   $('main').scrollTop = 0;
   if (state.focusTitle) {
     state.focusTitle = false;
@@ -1482,6 +1484,31 @@ function insertBlocks(b, nbs) {
   return nbs[0];
 }
 
+// Notes that read like this one, shown under the page. Taken from the text alone; the panel stays hidden when there are none.
+async function loadRelated(path) {
+  const box = $('#related');
+  box.hidden = true;
+  box.replaceChildren();
+  let found;
+  try {
+    found = await api('GET', `/api/related?path=${enc(path)}`);
+  } catch {
+    return; // the panel is optional: a failed lookup just leaves it out
+  }
+  if (state.page?.path !== path || !found.related.length) return;
+  box.append(el('p', 'eyebrow mono', 'Notas relacionadas'));
+  for (const r of found.related) {
+    const a = el('a', 'related-link', r.name);
+    a.href = `#/${enc(r.path)}`;
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      go(r.path);
+    });
+    box.append(a);
+  }
+  box.hidden = false;
+}
+
 // Saves the open page first, then downloads it as one standalone HTML file (pictures inside; see lib/export.mjs).
 async function exportPage() {
   if (!state.page) return;
@@ -1528,6 +1555,18 @@ async function insertItem(b, item) {
       return editCover('source');
     case 'export':
       return exportPage();
+    case 'summary': {
+      // Sentences of this note that carry its main words, as a callout. Nothing is written that the note does not already say.
+      const lines = summarize(state.page.blocks.map((x) => x.text).join('\n'), 3);
+      if (!lines.length) return setStatus('La nota es demasiado corta para resumirla');
+      return insertBlocks(b, [newBlock('quote', ['[!note] Resumen', ...lines].join('\n'))]);
+    }
+    case 'tags': {
+      // Tags this note does not have yet, as a line to keep or delete. Suggested from the words only.
+      const { tags } = await api('GET', `/api/related?path=${enc(state.page.path)}`);
+      if (!tags.length) return setStatus('No hay etiquetas que sugerir');
+      return insertBlocks(b, [newBlock('text', `Etiquetas sugeridas: ${tags.map((t) => `#${t}`).join(' ')}`)]);
+    }
     case 'icon': {
       const emoji = await askText('Icono de la página: un emoji o una imagen (un archivo del vault o una dirección https://). Déjalo vacío para quitarlo.', '');
       if (emoji === null) return;
@@ -1914,6 +1953,8 @@ const SLASH = [
   { group: 'Página', label: 'Icono', type: 'icon', icon: 'smile', keys: 'icon emoji page symbol simbolo', hint: '☺' },
   { group: 'Página', label: 'Ancho completo', type: 'fullwidth', icon: 'expand', keys: 'full wide width page ancha', hint: '↔' },
   { group: 'Página', label: 'Exportar página (HTML)', type: 'export', icon: 'file', keys: 'export download html share archivo compartir exportar', hint: '⤓' },
+  { group: 'Página', label: 'Resumen automático', type: 'summary', icon: 'quote', keys: 'resumen summary resumir extracto', hint: '…' },
+  { group: 'Página', label: 'Etiquetas sugeridas', type: 'tags', icon: 'tag', keys: 'etiquetas tags sugerir', hint: '#' },
 ];
 // Items that insert something new (a block, or a page property) instead of changing the current block's type.
 const INSERTS = new Set(['callout', 'embed', 'button', 'database', 'subpages', 'cover', 'icon', 'media', 'bookmark', 'fullwidth']);

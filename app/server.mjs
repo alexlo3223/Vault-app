@@ -14,6 +14,7 @@ import { parseProps, renameProp } from './public/graph.mjs';
 import { validPropName } from './public/properties.mjs';
 import { extractDatabase, parseDb } from './public/database.mjs';
 import { renderPageHtml } from './lib/export.mjs';
+import { related, suggestTags } from './public/similar.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, 'public');
@@ -31,6 +32,7 @@ const STATIC = {
   '/props-ui.mjs': ['props-ui.mjs', JS],
   '/cover.mjs': ['cover.mjs', JS],
   '/cover-ui.mjs': ['cover-ui.mjs', JS],
+  '/similar.mjs': ['similar.mjs', JS],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'],
   '/icon.svg': ['icon.svg', 'image/svg+xml'],
@@ -541,6 +543,16 @@ async function handle(req, res, root) {
       if (!size) return res.end();
       // Sent in pieces, never the whole file in memory. A reader that goes away mid-file is not an error.
       return pipeline(createReadStream(full, { start, end }), res).catch(() => res.destroy());
+    }
+
+    // Notes that read like this one, and tags it could take (from the text alone; see public/similar.mjs).
+    case 'GET /api/related': {
+      const path = q('path');
+      notePath(root, path);
+      const docs = await buildIndex(root);
+      const me = docs.find((d) => d.path === path);
+      const existing = me ? me.content.match(/#[\p{L}_][\p{L}\p{N}_/-]*/gu) ?? [] : [];
+      return send(res, 200, { related: related(docs, path, 5), tags: suggestTags(docs, path, 5, existing) });
     }
 
     case 'GET /api/export': {
