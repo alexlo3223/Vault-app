@@ -1482,6 +1482,19 @@ function insertBlocks(b, nbs) {
   return nbs[0];
 }
 
+// Saves the open page first, then downloads it as one standalone HTML file (pictures inside; see lib/export.mjs).
+async function exportPage() {
+  if (!state.page) return;
+  await flushSave();
+  const link = el('a');
+  link.href = `/api/export?path=${enc(state.page.path)}`;
+  link.download = '';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setStatus('Exportación iniciada: el HTML se descarga con las imágenes dentro');
+}
+
 async function insertItem(b, item) {
   switch (item.type) {
     case 'callout':
@@ -1513,6 +1526,8 @@ async function insertItem(b, item) {
     }
     case 'cover':
       return editCover('source');
+    case 'export':
+      return exportPage();
     case 'icon': {
       const emoji = await askText('Icono de la página: un emoji o una imagen (un archivo del vault o una dirección https://). Déjalo vacío para quitarlo.', '');
       if (emoji === null) return;
@@ -1898,6 +1913,7 @@ const SLASH = [
   { group: 'Página', label: 'Imagen de portada', type: 'cover', icon: 'image', keys: 'cover banner header picture page cabecera', hint: '▭' },
   { group: 'Página', label: 'Icono', type: 'icon', icon: 'smile', keys: 'icon emoji page symbol simbolo', hint: '☺' },
   { group: 'Página', label: 'Ancho completo', type: 'fullwidth', icon: 'expand', keys: 'full wide width page ancha', hint: '↔' },
+  { group: 'Página', label: 'Exportar página (HTML)', type: 'export', icon: 'file', keys: 'export download html share archivo compartir exportar', hint: '⤓' },
 ];
 // Items that insert something new (a block, or a page property) instead of changing the current block's type.
 const INSERTS = new Set(['callout', 'embed', 'button', 'database', 'subpages', 'cover', 'icon', 'media', 'bookmark', 'fullwidth']);

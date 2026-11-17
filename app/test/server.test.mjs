@@ -216,3 +216,15 @@ test('renaming a note rewrites the links that pointed at it, and leaves code and
   assert.deepEqual(moved.data.relinked, ['Relinked/Refs.md']);
   assert.match(await read('Relinked/Refs.md'), /^\[\[New\]\] .* \[\[Relinked\/New\]\] \[\[Child\]\]/);
 });
+
+test('a note exports as one standalone page to download; paths outside the vault and missing notes are refused', async () => {
+  await put('Exportable.md', '# Nota\n\n<script>alert(1)</script> texto\n\n> [!note] Aviso\n> cuerpo\n');
+  const ok = await raw('GET', `/api/export?path=${encodeURIComponent('Exportable.md')}`);
+  assert.equal(ok.status, 200);
+  assert.match(ok.headers['content-type'], /^text\/html/);
+  assert.match(ok.headers['content-disposition'], /^attachment; filename="Exportable\.html"/);
+  assert.doesNotMatch(ok.body, /<script>alert/);
+  assert.match(ok.body, /class="callout" data-kind="note"/);
+  assert.equal((await raw('GET', `/api/export?path=${encodeURIComponent('../secret.md')}`)).status, 400);
+  assert.equal((await raw('GET', `/api/export?path=${encodeURIComponent('Nada.md')}`)).status, 404);
+});

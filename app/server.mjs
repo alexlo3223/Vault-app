@@ -13,6 +13,7 @@ import { buildLinkGraph, makeResolver, rewriteLinks } from './lib/links.mjs';
 import { parseProps, renameProp } from './public/graph.mjs';
 import { validPropName } from './public/properties.mjs';
 import { extractDatabase, parseDb } from './public/database.mjs';
+import { renderPageHtml } from './lib/export.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(HERE, 'public');
@@ -41,6 +42,9 @@ const STATIC = {
 const CSP = "default-src 'self'; img-src 'self' data: https:; frame-src https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
 const MAX_BODY = 5 * 1024 * 1024;
 const MAX_UPLOAD = 100 * 1024 * 1024;
+// An exported page embeds its pictures: each one up to 5 MB, and 25 MB in all, so the file stays a sane size.
+const EXPORT_IMAGE_MAX = 5 * 1024 * 1024;
+const EXPORT_TOTAL_MAX = 25 * 1024 * 1024;
 const ATTACHMENTS = 'attachments';
 // No SVG: opened directly, an SVG file can run scripts.
 // Files the app will store and serve. Explicit list: no SVG and no HTML, since opened directly they can run scripts.
@@ -537,6 +541,59 @@ async function handle(req, res, root) {
       if (!size) return res.end();
       // Sent in pieces, never the whole file in memory. A reader that goes away mid-file is not an error.
       return pipeline(createReadStream(full, { start, end }), res).catch(() => res.destroy());
+    }
+
+    case 'GET /api/export': {
+      // One note as a standalone HTML file (see lib/export.mjs). Pictures that cannot be embedded are named in the page.
+      const path = q('path');
+      const full = notePath(root, path);
+      const info = await statOrNull(full);
+      if (!info?.isFile()) throw new HttpError(404, 'page not found');
+      const budget = { total: 0 };
+      const html = await renderPageHtml({
+        markdown: await readFile(full, 'utf8'),
+        title: basename(path, '.md'),
+        from: path,
+        imageUri: async (link, from) => {
+          try {
+            const file = await findAsset(root, link, from);
+            const mime = MEDIA_TYPES[extOf(file)];
+            if (!/^image\//.test(mime)) return null;
+            const { size } = await stat(file);
+            if (size > EXPORT_IMAGE_MAX || budget.total + size > EXPORT_TOTAL_MAX) return null;
+            budget.total += size;
+            return `data:${mime};base64,${(await readFile(file)).toString('base64')}`;
+          } catch {
+            return null; // not found, or outside the vault: the page says so instead
+          }
+        },
+        rowsOf: async (folder) => {
+          try {
+            return (await folderRows(root, folder)).map((r) => ({ name: r.name, props: r.props }));
+          } catch {
+            return []; // a folder that is not a database source: an empty table
+          }
+        },
+        // An embed names a database page: its database block gives the folder and the views (see lib/export.mjs).
+        sourceOf: async (page) => {
+          try {
+            const text = extractDatabase(await readFile(notePath(root, `${page}.md`), 'utf8'));
+            if (text === null) return null;
+            const cfg = parseDb(text);
+            return cfg.source ? { source: cfg.source, views: cfg.views, props: cfg.props } : null;
+          } catch {
+            return null;
+          }
+        },
+      });
+      const name = basename(path, '.md').replace(/["\\\r\n]/g, '_');
+      res.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'content-disposition': `attachment; filename="${name}.html"; filename*=UTF-8''${encodeURIComponent(name)}.html`,
+        'cache-control': 'no-store',
+        'x-content-type-options': 'nosniff',
+      });
+      return res.end(html);
     }
 
     case 'GET /api/db':
