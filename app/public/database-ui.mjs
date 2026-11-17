@@ -6,7 +6,7 @@ import { isHttps } from './blocks.mjs';
 import { isImageRef } from './cover.mjs';
 import { AGGS, BUCKETS, OPS, VIEW_TYPES, aggregate, bucketRows, extractDatabase, filterRows, groupRows, newView, parseDb, parseSort, pickViews, renamePropInDb, serializeDb, sortRows } from './database.mjs';
 import { computeRows, flatRows, fullSchema, isStored, newProp, nextColor, writeValue } from './properties.mjs';
-import { addPropertyMenu, editValue, formulaEditor, onPopoverClose, popoverOpen, propertyMenu, typeIcon, valueEl } from './props-ui.mjs';
+import { addPropertyMenu, editValue, formulaEditor, onPopoverClose, popover, popoverOpen, propertyMenu, typeIcon, valueEl } from './props-ui.mjs';
 
 const enc = encodeURIComponent;
 const SVG = 'http://www.w3.org/2000/svg';
@@ -15,6 +15,7 @@ const VIEW_LABEL = { table: 'Tabla', board: 'Tablero', gallery: 'Galería', list
 const VIEW_ICON = { table: 'table', board: 'board', gallery: 'grid', list: 'list', number: 'hash', donut: 'donut', bar: 'bar', line: 'line' };
 const BUCKET_LABEL = { day: 'Día', week: 'Semana', month: 'Mes', year: 'Año' };
 const AGG_LABEL = { count: 'Recuento', sum: 'Suma', avg: 'Media', min: 'Mínimo', max: 'Máximo' };
+const OP_LABEL = { '=': 'es', '!=': 'no es', '>': 'mayor que', '<': 'menor que', '>=': 'mayor o igual', '<=': 'menor o igual', contains: 'contiene', empty: 'está vacío', '!empty': 'no está vacío' };
 
 const el = (tag, cls = '', text = '') => {
   const n = document.createElement(tag);
@@ -58,7 +59,7 @@ const pictureUrl = (ref, from) => {
 };
 
 // The icon of a row: an emoji as text, or an image (a file of the vault or an https address) as a small picture.
-function iconNode(r) {
+export function iconNode(r) {
   const url = isImageRef(r.icon) ? pictureUrl(String(r.icon).replace(/^!?[[|]]$/g, ''), r.path) : '';
   if (!url) return el('span', 'db-card-icon', isImageRef(r.icon) ? '•' : r.icon);
   const img = el('img', 'db-icon-img');
@@ -100,19 +101,33 @@ export function databaseEl(b, ctx) {
   cfg.views.forEach((v, i) => {
     const tab = button(`db-tab${i === current ? ' active' : ''}`, v.name || VIEW_LABEL[v.view], () => {
       b.activeView = i;
+      b.enter = true;
       ctx.rerender();
     });
     tab.prepend(icon(VIEW_ICON[v.view], 13));
     head.append(tab);
   });
   head.append(
-    iconButton('plus', 'Añadir vista', () => {
-      cfg.views.push(newView('table'));
-      b.activeView = cfg.views.length - 1;
-      save(b, cfg, ctx);
+    iconButton('plus', 'Añadir vista', (e) => {
+      // The kind of view is picked from a menu under the button.
+      const p = popover(e.currentTarget, 'pop-views');
+      p.node.append(el('div', 'pop-section', 'Nueva vista'));
+      for (const t of VIEW_TYPES) {
+        const item = button('pop-item', '', () => {
+          p.close();
+          cfg.views.push(newView(t));
+          b.activeView = cfg.views.length - 1;
+          b.enter = true;
+          save(b, cfg, ctx);
+        });
+        item.append(icon(VIEW_ICON[t], 14), el('span', 'pop-label', VIEW_LABEL[t]));
+        p.node.append(item);
+      }
+      p.place();
     }),
     iconButton('settings', 'Ajustes de la vista', () => {
       b.settingsOpen = !b.settingsOpen;
+      b.enter = true;
       ctx.rerender();
     }),
     button('db-tab', 'Editar código', () => ctx.editSource(b)),
@@ -170,6 +185,7 @@ function embedDb(b, cfg, ctx) {
           const v = target.views[i];
           const tab = button(`db-tab${i === current ? ' active' : ''}`, v.name || VIEW_LABEL[v.view], () => {
             b.activeView = i;
+            b.enter = true;
             ctx.rerender();
           });
           tab.prepend(icon(VIEW_ICON[v.view], 13));
@@ -210,7 +226,16 @@ function paint(body, b, cfg, i, data, ctx, { settings = true, owner }) {
   if (!rows.length && view.view !== 'table') parts.push(el('p', 'db-empty', 'Aún no hay notas en esta carpeta. Usa “+ Nueva” para añadir una.'));
   else if (rows.length && !shown.length) parts.push(el('p', 'db-empty', 'Ninguna nota cumple los filtros de esta vista.'));
   if (shown.length || view.view === 'table') parts.push(viewContent(view, shown, props, o));
-  parts.push(button('db-tab db-new', '+ Nueva', () => ctx.createRow(cfg.source).catch((e) => ctx.setStatus(e.message))));
+  parts.push(button('db-tab db-new', '+ Nueva', (e) => ctx.createRow(cfg.source, e.currentTarget.getBoundingClientRect()).catch((err) => ctx.setStatus(err.message))));
+  body.onclick = (e) => {
+    const a = e.target.closest?.('a.db-card-title');
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button) return; // modified clicks keep the full-page link
+    e.preventDefault();
+    ctx.peek(decodeURIComponent(a.getAttribute('href').slice(2)));
+  };
+  // Fades in only after a view switch or opening the settings, not on every redraw after an edit.
+  if (b.enter) for (const p of parts) p.classList.add('db-enter');
+  b.enter = false;
   body.replaceChildren(...parts);
   focusPending();
 }
@@ -670,7 +695,7 @@ function settingsEl(b, cfg, i, keys, ctx) {
     const noValue = f.op === 'empty' || f.op === '!empty';
     row.append(
       select(keyOpts(false), f.key, (x) => { f.key = x; save_(); }, 'Propiedad del filtro'),
-      select(OPS.map((op) => [op, op]), f.op, (x) => { f.op = x; save_(); }, 'Operador del filtro'),
+      select(OPS.map((op) => [op, OP_LABEL[op] ?? op]), f.op, (x) => { f.op = x; save_(); }, 'Operador del filtro'),
       noValue ? el('span') : valueInput,
       iconButton('trash', 'Quitar filtro', () => {
         v.filter.splice(n, 1);

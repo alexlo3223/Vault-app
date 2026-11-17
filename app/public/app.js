@@ -1,6 +1,6 @@
 import { parse, serialize, newBlock, newColumn, isList, listNumbers, indentWidth, renderInline, renderedToRaw, formatTable, parseImage, embedLine, embedSrc, embedUrl, buttonLine, buttonParts, isButton, isEmbed, isHttps, bookmarkLine, bookmarkParts, mediaKind } from './blocks.mjs';
 import { parseProps, setProp } from './graph.mjs';
-import { cellHandlers, databaseEl, loadData, schemaHandlers } from './database-ui.mjs';
+import { cellHandlers, databaseEl, iconNode, loadData, schemaHandlers } from './database-ui.mjs';
 import { extractDatabase, newDatabasePage, parseDb, replaceDatabase, serializeDb } from './database.mjs';
 import { computeRows, fullSchema, isStored, newProp } from './properties.mjs';
 import { addPropertyMenu, editValue, onPopoverClose, popoverOpen, propertyMenu, typeIcon, valueEl } from './props-ui.mjs';
@@ -8,6 +8,11 @@ import { icon, ago, renderOverview, renderGraphView } from './views.js';
 import { FRAME_KEYS, coverSrc, frameStyle, isImageRef, readCover, removePatch } from './cover.mjs';
 import { openCoverEditor } from './cover-ui.mjs';
 import { summarize } from './similar.mjs';
+import { openPeek } from './peek-ui.mjs';
+
+// Inside a peek the app shows just the page (see peek-ui.mjs).
+const peekParam = new URLSearchParams(location.search).get('peek');
+if (peekParam) document.documentElement.classList.add('peek-mode');
 
 // ---------- small helpers ----------
 const $ = (sel) => document.querySelector(sel);
@@ -74,6 +79,8 @@ async function api(method, url, body) {
     throw new Error('El servidor de Vault no está en marcha: abre Vault.exe (o npm start) y recarga');
   });
   const data = await res.json().catch(() => ({}));
+  // Only the web version answers 401: the session ended, so sign in again and come back here.
+  if (res.status === 401) location.assign(`/login.html?next=${enc(location.pathname + location.search + location.hash)}`);
   if (!res.ok) {
     const err = new Error(data.error || res.statusText);
     err.status = res.status;
@@ -402,6 +409,7 @@ function treeNode(node, depth) {
     b.addEventListener('click', onClick);
     return b;
   };
+  if (node.icon) name.prepend(iconNode({ icon: node.icon, path: node.path }));
   row.append(chev, name, rowButton('+', 'Añadir una página dentro', () => createPage(`${node.key}/`)));
   if (!node.path) row.append(rowButton(icon('folder', 13), 'Añadir una carpeta dentro', () => createFolder(`${node.key}/`)));
   row.append(rowButton('×', 'Mover a la papelera', () => (node.path ? deletePage(node) : deleteFolder(node))));
@@ -701,6 +709,8 @@ async function flushSave() {
   if (state.page?.dirty && !state.conflict) await save();
   else await state.saving;
 }
+// The peek that holds this page saves it before closing (peek-ui.mjs).
+if (peekParam) window.vaultFlush = flushSave;
 
 $('#reload-disk').addEventListener('click', () => {
   state.page.dirty = false;
@@ -1612,10 +1622,7 @@ const pageNode = (key, nodes = state.tree) => {
 
 // Sets a property of the open page; it is saved with the rest of the page.
 function setPageProp(key, value) {
-  state.page.frontmatter = setProp(state.page.frontmatter, key, value);
-  renderProps(state.page.frontmatter);
-  renderCover(state.page.frontmatter);
-  changed();
+  setPageProps({ [key]: value });
 }
 
 // Sets several properties of the open page with one save ('' removes a key).
@@ -1624,6 +1631,16 @@ function setPageProps(patch) {
   renderProps(state.page.frontmatter);
   renderCover(state.page.frontmatter);
   changed();
+  if ('icon' in patch) treeIcon(state.page.path, patch.icon);
+}
+
+// Shows a page's new icon in the sidebar without reloading the tree.
+function treeIcon(path, icon) {
+  const find = (nodes) => nodes.find((n) => n.path === path) ?? nodes.map((n) => find(n.children)).find(Boolean);
+  const node = find(state.tree);
+  if (!node) return;
+  node.icon = icon || undefined;
+  renderTree();
 }
 
 const LOOK_KEYS = new Set([...FRAME_KEYS, 'icon', 'cover', 'width']);
@@ -1772,7 +1789,7 @@ function embedDatabase(b, page) {
 }
 
 // A new note in the database folder, opened straight away.
-async function createDbRow(cfg) {
+async function createDbRow(cfg, rect) {
   const folder = cfg.source.replace(/\/+$/, '');
   const taken = new Set(allPages().map((p) => p.toLowerCase()));
   let name = 'Sin título';
@@ -1780,7 +1797,7 @@ async function createDbRow(cfg) {
   const path = `${folder}/${name}.md`;
   await api('PUT', '/api/page', { path, content: '', baseMtime: null });
   await loadTree();
-  go(path, { focusTitle: true });
+  openPeek(path, { mode: 'center', rect, isNew: true, onClose: () => loadTree().then(route), onExpand: () => go(path, { focusTitle: true }) });
 }
 
 // Video, audio or any file: pick it, store it in attachments, and insert it as a block.
@@ -1824,7 +1841,8 @@ const dbCtx = {
   api,
   setStatus,
   setProp: setNoteProp,
-  createRow: (source) => createDbRow({ source }),
+  createRow: (source, rect) => createDbRow({ source }, rect),
+  peek: (path) => openPeek(path, { mode: 'side', onClose: () => loadTree().then(route), onExpand: () => go(path) }),
   editSource: (b) => {
     b.showSource = true;
     rerender();
@@ -2449,6 +2467,7 @@ blocksEl.addEventListener('contextmenu', (e) => {
 
 try {
   await loadTree();
+  state.focusTitle = peekParam === 'new';
   await route();
 } catch {
   showEmpty('No se pueden cargar tus notas. Reinicia Vault y prueba otra vez.');

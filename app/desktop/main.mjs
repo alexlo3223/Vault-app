@@ -6,8 +6,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { createApp } from '../server.mjs';
+import http from 'node:http';
+import { createClient } from '@supabase/supabase-js';
+import { createApp, createHandler } from '../server.mjs';
+import { createCloud } from '../lib/cloud.mjs';
 import { seedNotes } from './seed.mjs';
+import { syncOnce } from './sync.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ICON = join(HERE, 'icon.png');
@@ -32,7 +36,7 @@ function log(step, detail = '') {
 }
 process.on('uncaughtException', (err) => log('uncaughtException', err?.stack ?? String(err)));
 process.on('unhandledRejection', (err) => log('unhandledRejection', err?.stack ?? String(err)));
-log('start', `packaged=${app.isPackaged} argv=${process.argv.join(' ')}`);
+log('start', `version=${app.getVersion()} packaged=${app.isPackaged} argv=${process.argv.join(' ')}`);
 app.on('will-quit', () => log('will-quit'));
 app.on('quit', (_e, code) => log('quit', `exitCode=${code}`));
 // The tutorial notes: beside the app when installed (extraResources in package.json), the repo's own when not.
@@ -53,6 +57,84 @@ async function readConfig() {
 async function saveConfig(patch) {
   await mkdir(dirname(CONFIG()), { recursive: true });
   await writeFile(CONFIG(), JSON.stringify({ ...(await readConfig()), ...patch }, null, 2));
+}
+
+// ---------- cloud sync (Supabase) ----------
+// The project address and public key are in app/cloud.json (see README); empty means the cloud menu is off.
+const CLOUD = JSON.parse(await readFile(join(HERE, '..', 'cloud.json'), 'utf8').catch(() => '{}'));
+const cloudOn = Boolean(CLOUD.url && CLOUD.key);
+// The sign-in page's address: Supabase sends Google sign-ins back here, so it is fixed (supabase/config.toml).
+const LOGIN_PORT = 47321;
+const SYNC_EVERY = 30_000;
+let db = null;
+let syncing = null;
+let lastSync = 'nunca';
+let cloudUser = null; // e-mail of the signed-in account, for the menu
+
+// Supabase keeps (and refreshes) the session in a file of the data folder.
+function cloudClient() {
+  const file = join(app.getPath('userData'), 'cloud-session.json');
+  const read = () => readFile(file, 'utf8').then(JSON.parse).catch(() => ({}));
+  const storage = {
+    getItem: async (k) => (await read())[k] ?? null,
+    setItem: async (k, v) => writeFile(file, JSON.stringify({ ...(await read()), [k]: v })),
+    removeItem: async (k) => {
+      const all = await read();
+      delete all[k];
+      await writeFile(file, JSON.stringify(all));
+    },
+  };
+  return createClient(CLOUD.url, CLOUD.key, { auth: { storage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+}
+
+async function sync(manual = false) {
+  const { data } = await db.auth.getSession();
+  cloudUser = data.session?.user.email ?? null;
+  if (!data.session) {
+    if (manual) dialog.showMessageBox(win, { message: 'Inicia sesión en la nube primero (Archivo → Iniciar sesión en la nube…).' });
+    return;
+  }
+  // One run at a time; a manual sync during a run waits for it.
+  syncing ??= syncOnce({ root: notesDir, db, userId: data.session.user.id, statePath: join(app.getPath('userData'), 'sync.json'), log })
+    .then((counts) => {
+      lastSync = new Date().toLocaleTimeString();
+      log('sync', JSON.stringify(counts));
+      Menu.setApplicationMenu(buildMenu());
+      // No reload here: it would drop what is being typed. The editor notices a page changed on disk when it saves.
+      if (manual) dialog.showMessageBox(win, { message: 'Sincronizado.' });
+    })
+    .catch((err) => {
+      log('sync failed', err.stack ?? String(err));
+      if (manual) dialog.showErrorBox('Vault', `No se pudo sincronizar:\n${err.message}`);
+    })
+    .finally(() => (syncing = null));
+  return syncing;
+}
+
+// Signs in through the same page as the web version, opened in the system browser (Google refuses app windows).
+function cloudSignIn() {
+  let server;
+  const cloud = createCloud({
+    url: CLOUD.url,
+    key: CLOUD.key,
+    onSignIn: async (s) => {
+      const { data } = await db.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token });
+      cloudUser = data.session?.user.email ?? null;
+      setTimeout(() => server.close(), 5000); // after the browser got its "done" page
+      Menu.setApplicationMenu(buildMenu());
+      sync(true);
+    },
+  });
+  server = http.createServer(createHandler({ cloud }));
+  server.once('error', (err) => dialog.showErrorBox('Vault', `No se pudo abrir el inicio de sesión (puerto ${LOGIN_PORT}):\n${err.message}`));
+  server.listen(LOGIN_PORT, '127.0.0.1', () => shell.openExternal(`http://127.0.0.1:${LOGIN_PORT}/login.html?next=${encodeURIComponent('/login.html?done=1')}`));
+  setTimeout(() => server.close(), 10 * 60_000); // nobody signed in: stop listening
+}
+
+async function cloudSignOut() {
+  await db.auth.signOut().catch(() => {});
+  cloudUser = null;
+  Menu.setApplicationMenu(buildMenu());
 }
 
 async function chooseNotesFolder() {
@@ -76,6 +158,16 @@ function buildMenu() {
         { label: 'Abrir carpeta de notas', click: () => shell.openPath(notesDir) },
         { label: 'Cambiar carpeta de notas…', click: () => chooseNotesFolder() },
         { type: 'separator' },
+        ...(!cloudOn
+          ? []
+          : cloudUser
+            ? [
+                { label: `Nube: ${cloudUser} · última sincronización ${lastSync}`, enabled: false },
+                { label: 'Sincronizar ahora', click: () => sync(true) },
+                { label: 'Cerrar sesión de la nube', click: () => cloudSignOut() },
+                { type: 'separator' },
+              ]
+            : [{ label: 'Iniciar sesión en la nube…', click: () => cloudSignIn() }, { type: 'separator' }]),
         { label: 'Salir', role: 'quit' },
       ],
     },
@@ -118,7 +210,10 @@ function createWindow(origin) {
     minHeight: 360,
     title: 'Vault',
     icon: ICON,
-    backgroundColor: '#0b0b0f',
+    autoHideMenuBar: true, // no Archivo/Editar/Ver bar; Alt still shows it and its shortcuts keep working
+    // Windows 11: the desktop behind the window is blurred into the sidebar (the page background is transparent, see style.css).
+    // An opaque window colour would paint over the acrylic, so it is fully transparent there.
+    ...(process.platform === 'win32' ? { backgroundMaterial: 'acrylic', backgroundColor: '#00000000' } : { backgroundColor: '#0b0b0f' }),
     show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
@@ -178,6 +273,11 @@ if (!gotLock) {
     Menu.setApplicationMenu(buildMenu());
     createWindow(`http://127.0.0.1:${server.address().port}`);
     log('window created');
+    if (cloudOn) {
+      db = cloudClient();
+      sync();
+      setInterval(sync, SYNC_EVERY);
+    }
   }).catch((err) => {
     log('startup failed', err?.stack ?? String(err));
     dialog.showErrorBox('Vault', `Vault no pudo arrancar. Detalles en:\n${STARTUP_LOG()}\n\n${err?.message ?? err}`);

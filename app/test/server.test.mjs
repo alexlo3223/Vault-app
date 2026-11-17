@@ -70,6 +70,13 @@ test('tree nests sub-pages under their page', async () => {
     [['Loose', null], ['Note', 'Note.md'], ['Projects', 'Projects.md']],
   );
   assert.deepEqual(tree[2].children.map((c) => c.path), ['Projects/Plan.md']);
+  assert.equal(tree[1].icon, undefined);
+});
+
+test('tree carries the page icon for the sidebar', async () => {
+  await put('Iconed.md', '---\nicon: 📚\n---\nbody');
+  const { tree } = (await call('GET', '/api/tree')).data;
+  assert.equal(tree.find((n) => n.name === 'Iconed').icon, '📚');
 });
 
 test('search and link resolution', async () => {

@@ -1,0 +1,21 @@
+/* Sign-in and Claude consent pages of the web version; same colours as style.css. */
+:root {
+  --void: #111319; --low: #191b22; --high: #282a30; --amber: #ffc857; --crimson-text: #ff8f9f;
+  --t100: #ffffff; --t70: rgba(255, 255, 255, 0.7); --hair: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--void); color: var(--t100); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+.card { width: 100%; max-width: 380px; padding: 28px 24px; background: var(--low); border: 1px solid var(--hair); border-radius: 14px; display: grid; gap: 14px; }
+h1 { margin: 0; font-size: 22px; }
+p { margin: 0; }
+.muted { color: var(--t70); font-size: 13px; }
+.or { text-align: center; }
+form { display: grid; gap: 12px; }
+label { display: grid; gap: 4px; font-size: 13px; color: var(--t70); }
+input { font: inherit; color: inherit; background: var(--high); border: 1px solid var(--hair); border-radius: 8px; padding: 10px 12px; }
+.btn, button { font: inherit; display: block; width: 100%; text-align: center; text-decoration: none; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--hair); background: var(--high); color: var(--t100); cursor: pointer; }
+.primary { background: var(--amber); border-color: var(--amber); color: var(--void); font-weight: 600; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.error { color: var(--crimson-text); font-size: 13px; }
+form button + button { margin-top: 8px; }

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install --omit=dev",
+  "buildCommand": "",
+  "outputDirectory": "app/public",
+  "cleanUrls": false,
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/auth/:path*", "destination": "/api/index" },
+    { "source": "/oauth/:path*", "destination": "/api/index" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; img-src 'self' data: https:; media-src 'self' https://*.supabase.co; frame-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    }
+  ]
+}

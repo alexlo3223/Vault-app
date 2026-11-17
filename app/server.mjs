@@ -3,12 +3,11 @@
 // Listens on 127.0.0.1 only; every path from the browser is checked before it touches the disk.
 // shortcut: the note index is rebuilt on every tree/graph/search request; cache it if a large vault gets slow.
 import http from 'node:http';
-import { createReadStream } from 'node:fs';
-import { pipeline } from 'node:stream/promises';
-import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { basename, dirname, join, posix, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { buildIndex, search } from './lib/search.mjs';
+import { search } from './lib/search.mjs';
+import { fsStore } from './lib/store-fs.mjs';
 import { buildLinkGraph, makeResolver, rewriteLinks } from './lib/links.mjs';
 import { parseProps, renameProp } from './public/graph.mjs';
 import { validPropName } from './public/properties.mjs';
@@ -32,8 +31,12 @@ const STATIC = {
   '/props-ui.mjs': ['props-ui.mjs', JS],
   '/cover.mjs': ['cover.mjs', JS],
   '/cover-ui.mjs': ['cover-ui.mjs', JS],
+  '/peek-ui.mjs': ['peek-ui.mjs', JS],
   '/similar.mjs': ['similar.mjs', JS],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
+  '/login.html': ['login.html', 'text/html; charset=utf-8'],
+  '/login.js': ['login.js', JS],
+  '/login.css': ['login.css', 'text/css; charset=utf-8'],
   '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'],
   '/icon.svg': ['icon.svg', 'image/svg+xml'],
   '/fonts/geist.woff2': ['fonts/geist.woff2', 'font/woff2'],
@@ -41,7 +44,8 @@ const STATIC = {
   '/fonts/space-grotesk.woff2': ['fonts/space-grotesk.woff2', 'font/woff2'],
 };
 // frame-src https: lets notes embed web pages and videos; only https frames are allowed, and they run sandboxed.
-const CSP = "default-src 'self'; img-src 'self' data: https:; frame-src https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
+// 'self' (in both frame-src and frame-ancestors) lets the app show one of its own pages in a peek (peek-ui.mjs); no other site can frame it.
+const CSP = "default-src 'self'; img-src 'self' data: https:; frame-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'";
 const MAX_BODY = 5 * 1024 * 1024;
 const MAX_UPLOAD = 100 * 1024 * 1024;
 // An exported page embeds its pictures: each one up to 5 MB, and 25 MB in all, so the file stays a sane size.
@@ -50,7 +54,7 @@ const EXPORT_TOTAL_MAX = 25 * 1024 * 1024;
 const ATTACHMENTS = 'attachments';
 // No SVG: opened directly, an SVG file can run scripts.
 // Files the app will store and serve. Explicit list: no SVG and no HTML, since opened directly they can run scripts.
-const MEDIA_TYPES = {
+export const MEDIA_TYPES = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', bmp: 'image/bmp',
   mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
   mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', ogg: 'audio/ogg',
@@ -59,7 +63,7 @@ const MEDIA_TYPES = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
-const extOf = (name) => (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '');
+export const extOf = (name) => (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '');
 const RESERVED = /^(con|prn|aux|nul|com\d|lpt\d)$/i; // Windows device names
 
 export class HttpError extends Error {
@@ -108,26 +112,6 @@ export function assetPath(root, rel) {
   return inVault(root, rel, (p) => p.slice(0, p.lastIndexOf('.')));
 }
 
-// Every folder and file under root, skipping hidden folders (.obsidian, .trash, .git) and node_modules.
-export async function walkVault(root) {
-  const folders = [];
-  const files = [];
-  async function walk(dir, prefix) {
-    for (const ent of await readdir(dir, { withFileTypes: true })) {
-      if (ent.name.startsWith('.') || ent.name === 'node_modules') continue;
-      const rel = prefix + ent.name;
-      if (ent.isDirectory()) {
-        folders.push(rel);
-        await walk(join(dir, ent.name), `${rel}/`);
-      } else {
-        files.push(rel);
-      }
-    }
-  }
-  await walk(root, '');
-  return { folders, files };
-}
-
 // Notion-style nesting on plain files: "A.md" is a page, "A/B.md" is its sub-page; folders without a page show too.
 export function buildTree(docs, folders = []) {
   const top = { children: [] };
@@ -142,7 +126,13 @@ export function buildTree(docs, folders = []) {
     return n;
   };
   for (const f of folders) node(f);
-  for (const d of docs) node(d.path.slice(0, -3)).path = d.path;
+  for (const d of docs) {
+    const n = node(d.path.slice(0, -3));
+    n.path = d.path;
+    // The page's icon (emoji or image), shown before its name in the sidebar.
+    const icon = parseProps(d.content?.match(FRONTMATTER)?.[0] ?? '')?.find((r) => r.key === 'icon')?.value;
+    if (icon) n.icon = icon;
+  }
   const sortAll = (n) => {
     n.children.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
     n.children.forEach(sortAll);
@@ -218,32 +208,6 @@ export function buildGraphData(docs) {
   };
 }
 
-const statOrNull = (p) =>
-  stat(p).catch((e) => {
-    if (e.code === 'ENOENT') return null;
-    throw e;
-  });
-const isDir = async (p) => (await statOrNull(p))?.isDirectory() ?? false;
-
-// Writes a file without ever leaving it half-written. A new file is written beside its place and renamed into it.
-// An existing file is first written in full to that side file, then overwritten in place and the side file removed:
-// overwriting keeps the file's identity, so its creation time (the "Created time" property) survives every save,
-// and if the overwrite fails the side file still holds the complete new content.
-async function atomicWrite(full, content) {
-  await mkdir(dirname(full), { recursive: true });
-  const tmp = join(dirname(full), `.${basename(full)}.${process.pid}.tmp`);
-  await writeFile(tmp, content, 'utf8');
-  if (!(await statOrNull(full))) return rename(tmp, full);
-  await writeFile(full, content, 'utf8');
-  await unlink(tmp);
-}
-
-async function moveToTrash(root, full) {
-  const trash = join(root, '.trash');
-  await mkdir(trash, { recursive: true });
-  await rename(full, join(trash, `${Date.now()}-${basename(full)}`));
-}
-
 async function readBody(req, max) {
   const chunks = [];
   let size = 0;
@@ -253,6 +217,12 @@ async function readBody(req, max) {
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
+}
+
+// A plain HTML form (the web version's consent page posts one).
+async function readForm(req) {
+  if (!(req.headers['content-type'] ?? '').startsWith('application/x-www-form-urlencoded')) throw new HttpError(415, 'se esperaba un formulario');
+  return new URLSearchParams((await readBody(req, MAX_BODY)).toString('utf8'));
 }
 
 async function readJson(req) {
@@ -284,15 +254,15 @@ function send(res, status, data) {
 const FRONTMATTER = /^---\r?\n(?:[\s\S]*?\r?\n)?---(?:\r?\n|$)/;
 
 // The notes directly inside one database folder.
-async function rowDocs(root, folder) {
+async function rowDocs(store, folder) {
   const dir = folder.replace(/\/+$/, '');
-  folderPath(root, dir);
+  folderPath(store.root, dir);
   const prefix = `${dir}/`;
-  return (await buildIndex(root)).filter((d) => d.path.startsWith(prefix) && !d.path.slice(prefix.length).includes('/'));
+  return (await store.docs()).filter((d) => d.path.startsWith(prefix) && !d.path.slice(prefix.length).includes('/'));
 }
 
-async function folderRows(root, folder) {
-  const docs = await rowDocs(root, folder);
+async function folderRows(store, folder) {
+  const docs = await rowDocs(store, folder);
   return Promise.all(
     docs.map(async (d) => {
       const fm = d.content.match(FRONTMATTER)?.[0] ?? '';
@@ -301,65 +271,64 @@ async function folderRows(root, folder) {
       // First image in the body (Markdown or Obsidian syntax), for gallery cards that have no cover property.
       const body = d.content.slice(fm.length);
       const image = body.match(/!\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]|!\[[^\]\n]*\]\(([^)\s]+)\)/);
-      // Birth time for "Created time"; file systems without one report 0, then the edit time stands in.
-      const info = await statOrNull(notePath(root, d.path));
-      const ctime = info?.birthtimeMs || d.mtime;
+      const ctime = (await store.stat(d.path))?.ctime || d.mtime;
       return { path: d.path, name: d.name, mtime: d.mtime, ctime, props, icon: props.icon ?? '', cover: props.cover ?? '', image: image ? (image[1] ?? image[2]).trim() : '' };
     }),
   );
 }
 
 // Renames a property in every row of a database (or removes it when `to` is empty), keeping the rest of each note.
-async function renameRowsProp(root, folder, from, to) {
+async function renameRowsProp(store, folder, from, to) {
   if (typeof from !== 'string' || !from || typeof to !== 'string') throw new HttpError(400, 'from y to deben ser texto');
   if (to && !validPropName(to)) throw new HttpError(400, 'ese nombre de propiedad no está permitido');
   let changed = 0;
-  for (const d of await rowDocs(root, folder)) {
-    const full = notePath(root, d.path);
-    const content = await readFile(full, 'utf8');
+  for (const d of await rowDocs(store, folder)) {
+    const content = await store.read(d.path);
     const fm = content.match(FRONTMATTER)?.[0];
     if (!fm) continue;
     const next = renameProp(fm, from, to);
     if (next === fm) continue;
-    await atomicWrite(full, next + content.slice(fm.length));
+    await store.write(d.path, next + content.slice(fm.length));
     changed++;
   }
   return { changed };
 }
 
 // Like Obsidian: relative to the note, then from the vault root, then the shortest path with that file name.
-async function findAsset(root, link, from) {
+// Gives the file's vault-relative path.
+async function findAsset(store, link, from) {
   const tries = [posix.normalize(link)];
   if (from) tries.unshift(posix.join(posix.dirname(from), link));
   for (const rel of tries) {
-    let full;
     try {
-      full = assetPath(root, rel);
+      assetPath(store.root, rel);
     } catch {
       continue;
     }
-    if ((await statOrNull(full))?.isFile()) return full;
+    if ((await store.stat(rel))?.isFile) return rel;
   }
   const name = posix.basename(link).toLowerCase();
-  const hit = (await walkVault(root)).files.filter((f) => posix.basename(f).toLowerCase() === name).sort((a, b) => a.length - b.length)[0];
+  const hit = (await store.walk()).files.filter((f) => posix.basename(f).toLowerCase() === name).sort((a, b) => a.length - b.length)[0];
   if (!hit) throw new HttpError(404, 'no se encuentra el archivo');
-  return assetPath(root, hit);
+  assetPath(store.root, hit);
+  return hit;
 }
 
-async function moveFolder(root, fromRel, toRel) {
-  const from = folderPath(root, fromRel);
-  const to = folderPath(root, toRel);
+const isDir = async (store, rel) => (await store.stat(rel))?.isDir ?? false;
+
+async function moveFolder(store, fromRel, toRel) {
+  const from = folderPath(store.root, fromRel);
+  const to = folderPath(store.root, toRel);
   if (from === to) return { path: toRel };
   const caseOnly = from.toLowerCase() === to.toLowerCase();
-  if (!(await isDir(from))) throw new HttpError(404, 'no se encuentra la carpeta');
+  if (!(await isDir(store, fromRel))) throw new HttpError(404, 'no se encuentra la carpeta');
   if ((to + sep).startsWith(from + sep)) throw new HttpError(400, 'no se puede mover una carpeta dentro de sí misma');
-  const page = await statOrNull(`${from}.md`);
-  if (!caseOnly && ((await statOrNull(to)) || (page && (await statOrNull(`${to}.md`))))) {
+  const page = await store.stat(`${fromRel}.md`);
+  if (!caseOnly && ((await store.stat(toRel)) || (page && (await store.stat(`${toRel}.md`))))) {
     throw new HttpError(409, 'ya existe una página o carpeta con ese nombre');
   }
-  await mkdir(dirname(to), { recursive: true });
-  await rename(from, to);
-  if (page) await rename(`${from}.md`, `${to}.md`); // sub-pages move with their page
+  await store.move(fromRel, toRel);
+  if (page) await store.move(`${fromRel}.md`, `${toRel}.md`); // sub-pages move with their page
   return { path: toRel };
 }
 
@@ -367,11 +336,11 @@ async function moveFolder(root, fromRel, toRel) {
 // `before` is the index from before the move; fromKey and toKey are the old and new path without ".md"
 // (a page takes its sub-pages along, a folder its page).
 // shortcut: only [[wikilinks]] are rewritten, not Markdown links nor the page:/source: of database blocks; add them if renames break those.
-async function relink(root, before, fromKey, toKey) {
+async function relink(store, before, fromKey, toKey) {
   if (fromKey === toKey) return [];
   const moved = (p) => (p === `${fromKey}.md` || p.startsWith(`${fromKey}/`) ? toKey + p.slice(fromKey.length) : p);
   const was = makeResolver(before);
-  const now = makeResolver(await buildIndex(root));
+  const now = makeResolver(await store.docs());
   const relinked = [];
   for (const d of before) {
     const path = moved(d.path);
@@ -383,20 +352,24 @@ async function relink(root, before, fromKey, toKey) {
       return !lp.includes('/') && now(name, path) === dest ? name : dest.slice(0, -3);
     });
     if (next === d.content) continue;
-    await atomicWrite(notePath(root, path), next);
+    await store.write(path, next);
     relinked.push(path);
   }
   return relinked;
 }
 
-async function handle(req, res, root) {
+// `storeFor(req, res)` gives the vault to work on: the notes folder on this PC, or the signed-in user's cloud vault.
+// `cloud` (lib/cloud.mjs) is set when the server runs on the web: it signs people in and guards /api with that.
+async function handle(req, res, storeFor, cloud) {
   const host = req.headers.host ?? '';
   // Blocks DNS-rebinding: a page on another site cannot reach this server under its own host name.
-  if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) throw new HttpError(403, 'host no permitido');
-  if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== `http://${host}`) {
+  // On the web the session cookie is what keeps strangers out instead.
+  if (!cloud && !/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)) throw new HttpError(403, 'host no permitido');
+  const proto = (cloud && req.headers['x-forwarded-proto']) || 'http'; // Vercel says https here
+  if (req.method !== 'GET' && req.headers.origin && req.headers.origin !== `${proto}://${host}`) {
     throw new HttpError(403, 'origen no permitido');
   }
-  const url = new URL(req.url, `http://${host}`);
+  const url = new URL(req.url, `${proto}://${host}`);
   const q = (name) => url.searchParams.get(name) ?? '';
 
   if (req.method === 'GET' && STATIC[url.pathname]) {
@@ -410,86 +383,88 @@ async function handle(req, res, root) {
     return res.end(await readFile(join(PUBLIC, file)));
   }
 
+  if (cloud && /^\/(auth|oauth)\//.test(url.pathname)) return cloud.route(req, res, url, { readJson, readForm, send });
+  if (!url.pathname.startsWith('/api/')) throw new HttpError(404, 'no encontrado');
+  const store = await storeFor(req, res);
+  const { root } = store;
+
   switch (`${req.method} ${url.pathname}`) {
     case 'GET /api/tree':
-      return send(res, 200, { tree: buildTree(await buildIndex(root), (await walkVault(root)).folders) });
+      return send(res, 200, { tree: buildTree(await store.docs(), (await store.walk()).folders) });
 
     case 'GET /api/graph':
-      return send(res, 200, buildGraphData(await buildIndex(root)));
+      return send(res, 200, buildGraphData(await store.docs()));
 
     case 'GET /api/page': {
-      const full = notePath(root, q('path'));
-      const info = await statOrNull(full);
-      if (!info?.isFile()) throw new HttpError(404, 'no se encuentra la página');
-      return send(res, 200, { path: q('path'), content: await readFile(full, 'utf8'), mtime: info.mtimeMs });
+      notePath(root, q('path'));
+      const info = await store.stat(q('path'));
+      if (!info?.isFile) throw new HttpError(404, 'no se encuentra la página');
+      return send(res, 200, { path: q('path'), content: await store.read(q('path')), mtime: info.mtime });
     }
 
     case 'PUT /api/page': {
       const body = await readJson(req);
       if (typeof body.content !== 'string') throw new HttpError(400, 'content debe ser texto');
-      const full = notePath(root, body.path);
-      const current = await statOrNull(full);
-      // Refuse to overwrite a file that changed on disk since the editor loaded it (Obsidian, another tab).
-      const stale = current ? current.mtimeMs !== body.baseMtime : body.baseMtime != null;
+      notePath(root, body.path);
+      const current = await store.stat(body.path);
+      // Refuse to overwrite a file that changed on disk since the editor loaded it (Obsidian, another tab or device).
+      const stale = current ? current.mtime !== body.baseMtime : body.baseMtime != null;
       if (stale && body.force !== true) {
         throw new HttpError(409, current ? 'la página cambió en el disco' : 'la página se borró del disco', {
-          mtime: current?.mtimeMs ?? null,
+          mtime: current?.mtime ?? null,
         });
       }
-      await atomicWrite(full, body.content);
-      return send(res, 200, { mtime: (await stat(full)).mtimeMs });
+      return send(res, 200, { mtime: await store.write(body.path, body.content) });
     }
 
     case 'POST /api/folder': {
       const body = await readJson(req);
-      const full = folderPath(root, body.path);
-      if (await statOrNull(full)) throw new HttpError(409, 'ya existe una página o carpeta con ese nombre');
-      await mkdir(full, { recursive: true });
+      folderPath(root, body.path);
+      if (await store.stat(body.path)) throw new HttpError(409, 'ya existe una página o carpeta con ese nombre');
+      await store.mkdir(body.path);
       return send(res, 200, { path: body.path });
     }
 
     case 'POST /api/rename': {
       const body = await readJson(req);
-      const before = await buildIndex(root);
+      const before = await store.docs();
       if (body.folder === true) {
-        const moved = await moveFolder(root, body.from, body.to);
-        return send(res, 200, { ...moved, relinked: await relink(root, before, body.from, body.to) });
+        const moved = await moveFolder(store, body.from, body.to);
+        return send(res, 200, { ...moved, relinked: await relink(store, before, body.from, body.to) });
       }
       const from = notePath(root, body.from);
       const to = notePath(root, body.to);
       if (from === to) return send(res, 200, { path: body.to });
       const caseOnly = from.toLowerCase() === to.toLowerCase();
-      if (!(await statOrNull(from))) throw new HttpError(404, 'no se encuentra la página');
-      if (!caseOnly && (await statOrNull(to))) throw new HttpError(409, 'ya existe una página con ese nombre');
-      const fromDir = from.slice(0, -3);
-      const toDir = to.slice(0, -3);
-      const moveDir = await isDir(fromDir);
-      if (moveDir && (toDir + sep).startsWith(fromDir + sep)) throw new HttpError(400, 'no se puede mover una página dentro de sí misma');
-      if (moveDir && !caseOnly && (await statOrNull(toDir))) throw new HttpError(409, 'ya existe una carpeta con ese nombre');
-      await mkdir(dirname(to), { recursive: true });
-      await rename(from, to);
-      if (moveDir) await rename(fromDir, toDir);
-      return send(res, 200, { path: body.to, relinked: await relink(root, before, body.from.slice(0, -3), body.to.slice(0, -3)) });
+      if (!(await store.stat(body.from))) throw new HttpError(404, 'no se encuentra la página');
+      if (!caseOnly && (await store.stat(body.to))) throw new HttpError(409, 'ya existe una página con ese nombre');
+      const [fromDir, toDir] = [body.from.slice(0, -3), body.to.slice(0, -3)];
+      const moveDir = await isDir(store, fromDir);
+      if (moveDir && `${toDir}/`.startsWith(`${fromDir}/`)) throw new HttpError(400, 'no se puede mover una página dentro de sí misma');
+      if (moveDir && !caseOnly && (await store.stat(toDir))) throw new HttpError(409, 'ya existe una carpeta con ese nombre');
+      await store.move(body.from, body.to);
+      if (moveDir) await store.move(fromDir, toDir);
+      return send(res, 200, { path: body.to, relinked: await relink(store, before, fromDir, toDir) });
     }
 
     case 'POST /api/delete': {
       const body = await readJson(req);
       if (body.folder === true) {
-        const dir = folderPath(root, body.path);
-        if (!(await isDir(dir))) throw new HttpError(404, 'no se encuentra la carpeta');
-        await moveToTrash(root, dir);
+        folderPath(root, body.path);
+        if (!(await isDir(store, body.path))) throw new HttpError(404, 'no se encuentra la carpeta');
+        await store.trash(body.path);
         return send(res, 200, { ok: true });
       }
-      const full = notePath(root, body.path);
-      if (!(await statOrNull(full))) throw new HttpError(404, 'no se encuentra la página');
-      await moveToTrash(root, full);
-      if (await isDir(full.slice(0, -3))) await moveToTrash(root, full.slice(0, -3));
+      notePath(root, body.path);
+      if (!(await store.stat(body.path))) throw new HttpError(404, 'no se encuentra la página');
+      await store.trash(body.path);
+      if (await isDir(store, body.path.slice(0, -3))) await store.trash(body.path.slice(0, -3));
       return send(res, 200, { ok: true });
     }
 
     case 'GET /api/search': {
       const sort = q('sort') === 'modified' ? 'modified' : 'relevance';
-      const hits = search(await buildIndex(root), q('q'), { limit: 30, sort });
+      const hits = search(await store.docs(), q('q'), { limit: 30, sort });
       return send(res, 200, {
         results: hits.map((h) => ({ path: h.doc.path, name: h.doc.name, score: h.score, snippet: h.snippet })),
       });
@@ -505,51 +480,31 @@ async function handle(req, res, root) {
       const data = await readBody(req, MAX_UPLOAD);
       const dot = wanted.lastIndexOf('.');
       let name = wanted;
-      for (let n = 2; await statOrNull(join(root, ATTACHMENTS, name)); n++) name = `${wanted.slice(0, dot)} ${n}${wanted.slice(dot)}`;
-      await atomicWrite(assetPath(root, `${ATTACHMENTS}/${name}`), data);
+      for (let n = 2; await store.stat(`${ATTACHMENTS}/${name}`); n++) name = `${wanted.slice(0, dot)} ${n}${wanted.slice(dot)}`;
+      assetPath(root, `${ATTACHMENTS}/${name}`);
+      await store.write(`${ATTACHMENTS}/${name}`, data, MEDIA_TYPES[extOf(name)]);
       return send(res, 200, { name, path: `${ATTACHMENTS}/${name}` });
     }
 
     case 'GET /api/file': {
-      const full = await findAsset(root, q('link'), q('from'));
-      const mime = MEDIA_TYPES[extOf(full)];
+      const rel = await findAsset(store, q('link'), q('from'));
+      const mime = MEDIA_TYPES[extOf(rel)];
       const media = /^(image|video|audio)\//.test(mime);
-      const { size } = await stat(full);
-      const headers = {
+      return store.sendFile(rel, req, res, {
         'content-type': mime,
         // Documents download instead of opening inside the app.
         ...(media ? {} : { 'content-disposition': 'attachment' }),
         'content-security-policy': "sandbox; default-src 'none'; media-src 'self'",
         'cache-control': 'no-cache',
         'x-content-type-options': 'nosniff',
-        'accept-ranges': 'bytes',
-      };
-      // One byte range, which is what a player asks for when it seeks; any other Range header gets the whole file.
-      const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
-      let start = 0;
-      let end = size - 1;
-      let status = 200;
-      if (range && (range[1] || range[2])) {
-        start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2])); // "-N" is the last N bytes
-        if (range[1] && range[2]) end = Math.min(Number(range[2]), size - 1);
-        if (start > end) {
-          res.writeHead(416, { 'content-range': `bytes */${size}` });
-          return res.end();
-        }
-        status = 206;
-        headers['content-range'] = `bytes ${start}-${end}/${size}`;
-      }
-      res.writeHead(status, { ...headers, 'content-length': end - start + 1 });
-      if (!size) return res.end();
-      // Sent in pieces, never the whole file in memory. A reader that goes away mid-file is not an error.
-      return pipeline(createReadStream(full, { start, end }), res).catch(() => res.destroy());
+      });
     }
 
     // Notes that read like this one, and tags it could take (from the text alone; see public/similar.mjs).
     case 'GET /api/related': {
       const path = q('path');
       notePath(root, path);
-      const docs = await buildIndex(root);
+      const docs = await store.docs();
       const me = docs.find((d) => d.path === path);
       const existing = me ? me.content.match(/#[\p{L}_][\p{L}\p{N}_/-]*/gu) ?? [] : [];
       return send(res, 200, { related: related(docs, path, 5), tags: suggestTags(docs, path, 5, existing) });
@@ -558,30 +513,30 @@ async function handle(req, res, root) {
     case 'GET /api/export': {
       // One note as a standalone HTML file (see lib/export.mjs). Pictures that cannot be embedded are named in the page.
       const path = q('path');
-      const full = notePath(root, path);
-      const info = await statOrNull(full);
-      if (!info?.isFile()) throw new HttpError(404, 'page not found');
+      notePath(root, path);
+      const info = await store.stat(path);
+      if (!info?.isFile) throw new HttpError(404, 'page not found');
       const budget = { total: 0 };
       const html = await renderPageHtml({
-        markdown: await readFile(full, 'utf8'),
+        markdown: await store.read(path),
         title: basename(path, '.md'),
         from: path,
         imageUri: async (link, from) => {
           try {
-            const file = await findAsset(root, link, from);
+            const file = await findAsset(store, link, from);
             const mime = MEDIA_TYPES[extOf(file)];
             if (!/^image\//.test(mime)) return null;
-            const { size } = await stat(file);
+            const { size } = await store.stat(file);
             if (size > EXPORT_IMAGE_MAX || budget.total + size > EXPORT_TOTAL_MAX) return null;
             budget.total += size;
-            return `data:${mime};base64,${(await readFile(file)).toString('base64')}`;
+            return `data:${mime};base64,${Buffer.from(await store.readBytes(file)).toString('base64')}`;
           } catch {
             return null; // not found, or outside the vault: the page says so instead
           }
         },
         rowsOf: async (folder) => {
           try {
-            return (await folderRows(root, folder)).map((r) => ({ name: r.name, props: r.props }));
+            return (await folderRows(store, folder)).map((r) => ({ name: r.name, props: r.props }));
           } catch {
             return []; // a folder that is not a database source: an empty table
           }
@@ -589,7 +544,8 @@ async function handle(req, res, root) {
         // An embed names a database page: its database block gives the folder and the views (see lib/export.mjs).
         sourceOf: async (page) => {
           try {
-            const text = extractDatabase(await readFile(notePath(root, `${page}.md`), 'utf8'));
+            notePath(root, `${page}.md`);
+            const text = extractDatabase(await store.read(`${page}.md`));
             if (text === null) return null;
             const cfg = parseDb(text);
             return cfg.source ? { source: cfg.source, views: cfg.views, props: cfg.props } : null;
@@ -609,18 +565,18 @@ async function handle(req, res, root) {
     }
 
     case 'GET /api/db':
-      return send(res, 200, { rows: await folderRows(root, q('folder')) });
+      return send(res, 200, { rows: await folderRows(store, q('folder')) });
 
     case 'POST /api/db/prop': {
       const body = await readJson(req);
       if (typeof body.folder !== 'string' || !body.folder) throw new HttpError(400, 'falta la carpeta');
-      return send(res, 200, await renameRowsProp(root, body.folder, body.from, body.to ?? ''));
+      return send(res, 200, await renameRowsProp(store, body.folder, body.from, body.to ?? ''));
     }
 
     // Pages that hold a database block (with a source folder): the choices of the "insert database" menu.
     case 'GET /api/databases': {
       const databases = [];
-      for (const d of await buildIndex(root)) {
+      for (const d of await store.docs()) {
         const text = extractDatabase(d.content);
         const source = text === null ? '' : parseDb(text).source;
         if (source) databases.push({ path: d.path, name: d.name, source });
@@ -629,8 +585,7 @@ async function handle(req, res, root) {
     }
 
     case 'GET /api/resolve': {
-      const docs = await buildIndex(root);
-      return send(res, 200, { path: makeResolver(docs)(q('link'), q('from')) });
+      return send(res, 200, { path: makeResolver(await store.docs())(q('link'), q('from')) });
     }
 
     default:
@@ -638,16 +593,21 @@ async function handle(req, res, root) {
   }
 }
 
-export function createApp({ root }) {
-  const vault = resolve(root);
-  return http.createServer((req, res) => {
-    handle(req, res, vault).catch((err) => {
+// The request handler, with errors turned into JSON answers. Local: one notes folder. Web: pass `cloud` (lib/cloud.mjs).
+export function createHandler({ root, cloud }) {
+  const local = root && fsStore(root);
+  const storeFor = cloud ? cloud.storeFor : async () => local;
+  return (req, res) =>
+    handle(req, res, storeFor, cloud).catch((err) => {
       const status = err instanceof HttpError ? err.status : 500;
       if (status === 500) console.error(err);
       if (res.headersSent) return res.end();
       send(res, status, { error: status === 500 ? 'error interno' : err.message, ...(err.extra ?? {}) });
     });
-  });
+}
+
+export function createApp({ root }) {
+  return http.createServer(createHandler({ root }));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

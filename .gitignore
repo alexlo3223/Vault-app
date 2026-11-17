@@ -6,3 +6,8 @@ dist/
 *.exe
 node_modules/
 *.log
+
+# Supabase and Vercel local files.
+supabase/.temp/
+supabase/.branches/
+.vercel/

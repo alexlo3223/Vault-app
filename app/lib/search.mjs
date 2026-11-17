@@ -61,6 +61,9 @@ export function parseQuery(input) {
   return { clauses, matchCase };
 }
 
+// One indexed note, from its vault-relative path ("A/B.md"), text and edit time; any store builds docs with it.
+export const indexDoc = (path, content, mtime) => ({ path, name: basename(path, '.md'), content, mtime, tags: extractTags(content) });
+
 export async function buildIndex(root) {
   const docs = [];
   async function walk(dir) {
@@ -71,13 +74,7 @@ export async function buildIndex(root) {
         await walk(full);
       } else if (ent.name.endsWith('.md')) {
         const [content, info] = await Promise.all([readFile(full, 'utf8'), stat(full)]);
-        docs.push({
-          path: relative(root, full).split(sep).join('/'),
-          name: basename(ent.name, '.md'),
-          content,
-          mtime: info.mtimeMs,
-          tags: extractTags(content),
-        });
+        docs.push(indexDoc(relative(root, full).split(sep).join('/'), content, info.mtimeMs));
       }
     }
   }

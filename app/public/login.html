@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0b0f" />
+    <title>Entrar · Vault</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/login.css" />
+    <script type="module" src="/login.js"></script>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Vault</h1>
+      <p class="muted">Entra para ver tus notas.</p>
+      <a id="google" class="btn primary" href="/auth/google">Entrar con Google</a>
+      <div class="or muted">o con tu email</div>
+      <form id="login">
+        <label>Email <input name="email" type="email" autocomplete="username" required /></label>
+        <label>Contraseña <input name="password" type="password" autocomplete="current-password" required /></label>
+        <button class="btn" type="submit">Entrar</button>
+        <p id="error" class="error" role="alert" hidden></p>
+      </form>
+    </main>
+  </body>
+</html>

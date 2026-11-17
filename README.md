@@ -14,7 +14,7 @@ Vault es una aplicación de notas para Windows. Se instala como cualquier progra
 - **Propiedades** de la nota (`icon`, `cover`, `width`…) en el frontmatter YAML.
 - **Aplicación de escritorio**: instalador, con su propia ventana; no hace falta navegador ni Node.js.
 
-Todo funciona en local: tus notas no salen de tu PC.
+Todo funciona en local: tus notas no salen de tu PC salvo que actives la nube (ver *Nube, móvil y Claude*).
 
 ## Portada (banner) e icono
 
@@ -68,6 +68,42 @@ Solo puede haber una ventana de Vault abierta: si lo abres otra vez, se muestra 
    Tarda unos minutos. Crea `dist/Vault Setup <versión>.exe` (el instalador que se publica).
 3. Para publicar una versión, sube `version` en `package.json`, confirma y crea en GitHub una *Release* con la etiqueta `v<versión>`, adjuntando los dos `.exe` de `dist/`. Los ejecutables no se guardan en el repositorio (`.gitignore` los excluye).
 
+## Nube, móvil y Claude
+
+Las notas pueden vivir también en **Supabase**, para abrirlas desde el móvil o cualquier navegador (versión web en **Vercel**) y para que **Claude** (web, móvil, Desktop y Claude Code) las busque, lea y escriba. La app de Windows sigue usando su carpeta y se **sincroniza** con la nube cada 30 segundos.
+
+```
+Claude ──OAuth──► Supabase Auth (Google o contraseña) ◄── web / móvil (Vercel)
+   └─MCP──► función `mcp` de Supabase ──► tabla vault_files + Storage ◄── sincronización ◄── Vault (Windows)
+```
+
+### 1. Supabase (notas, cuentas y servidor MCP)
+1. Crea un proyecto en https://supabase.com e instala la CLI (`npm i -g supabase`).
+2. En Google Cloud Console crea un *ID de cliente OAuth* (aplicación web) con la URL de retorno `https://<ref>.supabase.co/auth/v1/callback`.
+3. Pon tu dirección de Vercel en `supabase/config.toml` (`site_url` y `additional_redirect_urls`).
+4. Ejecuta, con las claves de Google en `SUPABASE_AUTH_GOOGLE_CLIENT_ID` y `SUPABASE_AUTH_GOOGLE_SECRET`:
+   ```
+   supabase link --project-ref <ref>
+   supabase db push
+   supabase config push
+   supabase functions deploy mcp
+   ```
+5. En el panel de Supabase: *Authentication → JWT Keys* usa claves asimétricas (ES256 o RS256), que el servidor MCP necesita. Crea tu usuario (*Authentication → Users*, con contraseña). Las altas están cerradas: solo entra tu cuenta.
+
+### 2. Web y móvil (Vercel)
+1. Importa el repositorio en https://vercel.com (sin *framework*; `vercel.json` ya lo configura).
+2. Variables de entorno: `SUPABASE_URL` (`https://<ref>.supabase.co`) y `SUPABASE_PUBLISHABLE_KEY` (la clave pública *anon/publishable*).
+3. Abre la dirección de Vercel en el móvil, entra con Google o con tu contraseña y usa *Añadir a pantalla de inicio*.
+
+### 3. App de Windows
+Rellena `app/cloud.json` con la misma `url` y `key` y genera el instalador. En la app: *Archivo → Iniciar sesión en la nube…* (se abre el navegador). La primera vez sube toda la carpeta. Si una nota cambia a la vez en el PC y en la nube, se guardan las dos: la de la nube como `Nota (conflicto AAAA-MM-DD HH-MM).md`. Lo borrado en otro dispositivo va a la papelera (`.trash`), no desaparece.
+
+### 4. Conectar Claude
+- **claude.ai (y la app del móvil)**: *Ajustes → Conectores → Añadir conector personalizado* con `https://<ref>.supabase.co/functions/v1/mcp`. Te pedirá entrar en Vault y pulsar *Permitir*.
+- **Claude Code**: `claude mcp add --transport http vault https://<ref>.supabase.co/functions/v1/mcp`
+
+Herramientas: `list_notes`, `search_notes`, `read_note`, `write_note`, `append_to_note`, `delete_note` (a la papelera) y `query_database`.
+
 ## Desarrollo
 
 Requisitos: **Node.js 22 o superior** (https://nodejs.org, versión LTS).
@@ -98,7 +134,9 @@ Si al ejecutar `npm run desktop` desde el terminal de VS Code Electron se compor
 | `app/desktop/` | La app de escritorio (Electron): ventana, menú, carpeta de notas e icono. |
 | `app/server.mjs` | Servidor interno: lee y guarda las notas y sirve la interfaz. |
 | `app/public/` | La interfaz: editor, bases de datos, vistas, estilos. |
-| `app/lib/` | Búsqueda e índice de enlaces entre notas. |
+| `app/lib/` | Búsqueda, índice de enlaces, almacenamiento (disco o Supabase) e inicio de sesión web. |
+| `api/`, `vercel.json` | La versión web en Vercel. |
+| `supabase/` | Base de datos, configuración de cuentas y el servidor MCP para Claude. |
 | `app/test/` | Pruebas automáticas. |
 | `notes/` | Notas de ejemplo para el modo navegador (`npm start`). |
 | `scripts/` | Utilidades de desarrollo (generar el icono). |
@@ -108,7 +146,10 @@ Si al ejecutar `npm run desktop` desde el terminal de VS Code Electron se compor
 - Las webs que no permiten mostrarse dentro de otra página no se pueden incrustar.
 - Los vídeos no se pueden adelantar en el reproductor (no hay soporte de rangos HTTP).
 - Las bases de datos se recargan al cambiar algo de la página.
-- Solo hay una persona usando la app: no tiene cuentas ni acceso desde otros equipos.
+- Cada cuenta ve solo sus notas; no hay notas compartidas entre personas.
+- En la web los archivos que se suben pueden ocupar 4 MB como máximo (límite de Vercel); desde Windows se sincronizan sin ese límite.
+- Lo que Claude cambia por MCP no reescribe los enlaces `[[...]]` al renombrar (eso solo lo hace la app).
+- El servidor OAuth de Supabase que usa el conector de Claude está en beta.
 - El ejecutable no está firmado, así que Windows muestra el aviso de SmartScreen la primera vez.
 - Las relaciones son de un solo sentido: enlazar un libro con una cita no añade el libro en la cita.
 - No hay propiedades Person, Files & media, Button, Place ni ID, ni vistas Timeline, Calendar, Chart o Map.

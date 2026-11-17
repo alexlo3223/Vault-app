@@ -1,0 +1,29 @@
+# Supabase project settings for Vault. Push them with `supabase config push` after `supabase link`.
+# Replace vault.example.vercel.app with your Vercel address (see README, "Nube, móvil y Claude").
+project_id = "vault"
+
+[auth]
+site_url = "https://vault.example.vercel.app"
+# The web app, the desktop app's sign-in return and the local dev server.
+additional_redirect_urls = ["https://vault.example.vercel.app/auth/callback", "http://127.0.0.1:47321/auth/callback", "http://localhost:3000/auth/callback"]
+# Only you: create your account first, then keep sign-ups closed (Google sign-in of a new address is refused too).
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+skip_nonce_check = false
+
+# Claude signs in through Supabase Auth: it registers itself and you approve it on /oauth/consent.
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/oauth/consent"
+allow_dynamic_registration = true
+
+[functions.mcp]
+# The function checks the OAuth token itself (withSupabase in functions/mcp/index.ts).
+verify_jwt = false

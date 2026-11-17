@@ -37,11 +37,9 @@
 html, body { margin: 0; height: 100%; }
 body {
   display: flex;
-  background:
-    radial-gradient(900px 500px at 78% -8%, rgba(255, 200, 87, 0.055), transparent 70%),
-    radial-gradient(700px 500px at 10% 105%, rgba(50, 56, 73, 0.35), transparent 70%),
-    var(--void);
-  background-attachment: fixed;
+  /* light tint only: on Windows the acrylic behind the window does the blurring (see desktop/main.mjs);
+     one tint for the whole window so the sidebar and the gaps around the content card are the same colour */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(17, 19, 25, 0.35));
   color: var(--t85);
   font: 400 15px/1.6 var(--font-body);
   letter-spacing: -0.003em;
@@ -88,7 +86,7 @@ button.tag-chip:hover { border-color: var(--amber-line); color: var(--amber); ba
 }
 .btn:hover { background: var(--amber-soft); border-color: var(--amber); }
 .btn.primary { background: var(--amber); border-color: var(--amber); color: var(--void); font-weight: 600; font-family: var(--font-display); }
-.btn.primary:hover { background: var(--amber); box-shadow: 0 0 16px rgba(255, 200, 87, 0.4); }
+.btn.primary:hover { background: var(--amber); }
 .btn.mini { height: 26px; padding: 0 12px; font-size: 11.5px; }
 .btn.wide { width: 100%; }
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none; border-radius: 9999px; color: var(--t70); transition: background 0.15s, color 0.15s; }
@@ -97,7 +95,7 @@ button.tag-chip:hover { border-color: var(--amber-line); color: var(--amber); ba
 /* ---------- sidebar ---------- */
 #sidebar {
   width: 272px; flex: none; height: 100vh; display: flex; flex-direction: column; padding: 14px 10px 0;
-  background: var(--glass-1); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-right: 1px solid var(--slate); z-index: 20;
+  z-index: 20; /* no background of its own: the window tint on body shows through, so sidebar and gaps match */
 }
 .brand { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 8px 10px; }
 .logo { color: var(--amber); display: inline-flex; filter: drop-shadow(0 0 6px rgba(255, 200, 87, 0.45)); }
@@ -135,7 +133,14 @@ button.tag-chip:hover { border-color: var(--amber-line); color: var(--amber); ba
 .side-foot { display: flex; align-items: center; gap: 8px; margin: 0 -10px; padding: 12px 18px; background: rgba(12, 14, 20, 0.6); border-top: 1px solid var(--hair); font-size: 11px; color: var(--t45); }
 
 /* ---------- shell, top bar ---------- */
-.shell { flex: 1; min-width: 0; height: 100vh; display: flex; flex-direction: column; }
+.shell {
+  flex: 1; min-width: 0; height: 100vh; display: flex; flex-direction: column;
+  background:
+    radial-gradient(900px 500px at 78% -8%, rgba(255, 200, 87, 0.055), transparent 70%),
+    radial-gradient(700px 500px at 10% 105%, rgba(50, 56, 73, 0.35), transparent 70%),
+    var(--void);
+  background-attachment: fixed;
+}
 .topbar {
   flex: none; display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 16px; z-index: 10;
   background: var(--glass-1); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-bottom: 1px solid var(--slate);
@@ -435,10 +440,10 @@ dialog::backdrop { background: rgba(8, 9, 13, 0.6); -webkit-backdrop-filter: blu
 .db-set-row, .db-set-label { font-size: 12px; color: var(--t45); }
 .db-set-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; align-items: center; margin: 6px 0; }
 .db-set-label { display: block; margin: 12px 0 6px; font-family: var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
-.db-settings { margin-bottom: 14px; padding: 14px; border-radius: 0.9rem; border: 1px solid var(--amber-line); background: var(--lowest); }
+.db-settings { margin-bottom: 14px; padding: 16px; border-radius: 1rem; border: 1px solid var(--hair); background: var(--glass-2); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px) saturate(160%); box-shadow: var(--bevel), 0 12px 30px -18px rgba(0, 0, 0, 0.8); }
 .db-checks { display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .db-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--t85); }
-.db-filter { display: grid; grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1fr) 28px; gap: 6px; align-items: center; margin: 4px 0; }
+.db-filter { display: grid; grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1fr) 28px; gap: 6px; align-items: center; margin: 4px 0; }
 .db-set-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .db-card-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .db-card-icon { flex: none; }
@@ -669,3 +674,93 @@ textarea.pop-input { min-height: 56px; }
 @media (max-width: 620px) {
   .cv-controls { grid-template-columns: 1fr; }
 }
+
+/* ---------- peek: a page over the current view ---------- */
+.peek-back { position: fixed; inset: 0; z-index: 80; display: flex; background: rgba(5, 6, 10, 0.35); animation: peek-fade .2s ease; }
+.peek-back.center { align-items: flex-start; justify-content: center; padding-top: 12vh; }
+.peek-back.side { justify-content: flex-end; }
+.peek {
+  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.03));
+  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+.peek.center { width: min(720px, 92vw); height: 70vh; border-radius: 16px; animation: peek-pop .22s cubic-bezier(.2, .8, .2, 1); }
+.peek.side { width: min(560px, 100vw); height: 100%; border-width: 0 0 0 1px; box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.25), -20px 0 60px rgba(0, 0, 0, 0.4); animation: peek-slide .25s cubic-bezier(.2, .8, .2, 1); }
+.peek-bar { position: absolute; top: 8px; right: 10px; z-index: 2; display: flex; gap: 4px; }
+.peek-btn { width: 28px; height: 28px; border: 1px solid var(--hair); border-radius: 8px; background: rgba(17, 19, 25, 0.55); color: var(--t70); cursor: pointer; }
+.peek-btn:hover { color: var(--t100); border-color: var(--amber-line); }
+.peek-frame { flex: 1; width: 100%; border: 0; background: transparent; color-scheme: dark; }
+@keyframes peek-fade { from { opacity: 0; } }
+@keyframes peek-pop { from { opacity: 0; transform: scale(.55); } }
+@keyframes peek-slide { from { transform: translateX(40px); opacity: 0; } }
+@media (max-width: 700px) { .peek.center, .peek.side { width: 100vw; height: 100%; border-radius: 0; } .peek-back.center { padding-top: 0; } }
+
+/* inside the iframe: only the page, over the glass */
+.peek-mode, .peek-mode body, .peek-mode .shell { background: transparent !important; }
+.peek-mode #sidebar { display: none; }
+.peek-mode .page-layout { padding: 44px 28px 20vh; }
+
+/* ---------- desktop polish ---------- */
+/* the solid content floats on the glass as a card, every corner rounded alike */
+.shell { height: calc(100vh - 16px); margin: 8px 8px 8px 0; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 30px rgba(0, 0, 0, 0.35); }
+body.sidebar-hidden .shell { margin-left: 8px; }
+.peek-mode .shell { height: 100vh; margin: 0; border-radius: 0; box-shadow: none; }
+.side-foot { background: none; }
+.peek.side { border-radius: 16px 0 0 16px; }
+/* a peek shows only the page: no path, search or "new note" next to its own buttons */
+.peek-mode .topbar { display: none; }
+/* the sidebar icon of a page */
+.row .name .db-card-icon, .row .name .db-icon-img { display: inline-block; width: 16px; height: 16px; margin-right: 6px; vertical-align: -2px; font-size: 14px; line-height: 16px; text-align: center; object-fit: cover; border-radius: 3px; }
+/* press feedback on buttons and links */
+.btn, .icon-btn, .nav-item, .row .name, .chev, .peek-btn, .db-tab, a.db-card-title { transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s ease; }
+.btn:active, .icon-btn:active, .nav-item:active, .row .name:active, .peek-btn:active, .db-tab:active, a.db-card-title:active { transform: scale(0.97); }
+.nav-item:active, .row:has(.name:active) { background: rgba(50, 56, 73, 0.55); }
+
+/* ---------- database: settings controls in the app's own look ---------- */
+.db-settings .db-input, .db-settings .db-select {
+  height: 32px; padding: 0 12px; border-radius: 0.6rem; border: 1px solid var(--hair); background-color: rgba(0, 0, 0, 0.28);
+  color: var(--t85); font-size: 13px; transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+.db-settings .db-select {
+  appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ffffff80' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.db-settings .db-input:hover, .db-settings .db-select:hover { border-color: rgba(255, 255, 255, 0.16); background-color: rgba(255, 255, 255, 0.04); }
+.db-settings .db-input:focus, .db-settings .db-select:focus { outline: none; border-color: var(--amber-line); box-shadow: 0 0 0 3px var(--amber-soft); }
+.db-settings .db-set-label { color: var(--t35); font-size: 10.5px; letter-spacing: 0.08em; }
+/* visible properties as toggle chips */
+.db-check { position: relative; padding: 4px 12px 4px 8px; border-radius: 999px; border: 1px solid var(--hair); background: rgba(0, 0, 0, 0.2); cursor: pointer; user-select: none; transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.12s; }
+.db-check:hover { border-color: rgba(255, 255, 255, 0.16); }
+.db-check:active { transform: scale(0.96); }
+.db-check:has(input:checked) { border-color: var(--amber-line); background: var(--amber-soft); color: #fff; }
+.db-check input { appearance: none; -webkit-appearance: none; margin: 0; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--t35); display: grid; place-content: center; transition: border-color 0.15s, background 0.15s; }
+.db-check input:checked { border-color: var(--amber); background: var(--amber); box-shadow: inset 0 0 0 2.5px #2a2416; }
+.db-check input:focus-visible { outline: 2px solid var(--amber-line); outline-offset: 2px; }
+/* each filter is a small glass row */
+.db-filter { padding: 6px; border-radius: 0.8rem; border: 1px solid var(--hair); background: rgba(0, 0, 0, 0.15); }
+.db-filter .db-icon-btn:hover { color: var(--crimson-text); border-color: rgba(196, 40, 71, 0.4); }
+.db-set-actions { padding-top: 12px; border-top: 1px solid var(--hair); }
+
+/* ---------- small motion ---------- */
+@keyframes db-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
+.db-enter { animation: db-in 0.22s cubic-bezier(.2, .8, .2, 1) both; }
+.db-enter + .db-enter { animation-delay: 0.04s; }
+.pop { animation: pop-in 0.14s ease-out; transform-origin: top left; }
+.pop-views { width: 220px; gap: 1px; }
+.pop-views .pop-item { width: 100%; text-align: left; background: none; border: 0; color: var(--t85); transition: background 0.12s, padding-left 0.15s; }
+.pop-views .pop-item:hover { padding-left: 12px; color: #fff; }
+.pop-views .pop-item svg { color: var(--t45); transition: color 0.12s; }
+.pop-views .pop-item:hover svg { color: var(--amber); }
+.db-tab:hover { border-color: rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.04); }
+.db-tab.active:hover { border-color: var(--amber-line); background: var(--amber-soft); }
+.db-tab svg { transition: transform 0.2s ease; }
+.db-head .db-icon-btn:hover svg { transform: rotate(90deg); }
+.db-table tbody tr { transition: background 0.12s; }
+.db-table tbody tr:hover { background: rgba(255, 255, 255, 0.025); }
+.db-card { transition: transform 0.18s ease, border-color 0.18s, box-shadow 0.18s; }
+.db-card:hover { transform: translateY(-2px); border-color: rgba(255, 255, 255, 0.16); box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.8); }
+.db-new:hover { border-color: var(--amber-line); color: #fff; }
