@@ -22,6 +22,7 @@
         <a id="nav-overview" class="nav-item" href="#overview"><span data-icon="overview" data-size="18"></span><span>Resumen</span></a>
         <a id="nav-graph" class="nav-item" href="#graph"><span data-icon="graph" data-size="18"></span><span>Grafo</span></a>
         <button id="open-search" class="nav-item" type="button"><span data-icon="search" data-size="18"></span><span>Buscar</span><kbd class="kbd"></kbd></button>
+        <button id="open-settings" class="nav-item" type="button" hidden><span data-icon="settings" data-size="18"></span><span>Ajustes</span></button>
       </nav>
       <div class="side-scroll">
         <div id="pages-head" class="side-head" title="Suelta aquí para mover a la raíz">
@@ -102,6 +103,16 @@
           <button type="submit" id="ask-ok" class="db-tab db-done">Aceptar</button>
         </div>
       </form>
+    </dialog>
+    <dialog id="settings" aria-labelledby="settings-title">
+      <div class="settings-body">
+        <h2 id="settings-title" class="ask-title">Ajustes</h2>
+        <h3 class="eyebrow mono">Nube</h3>
+        <p id="settings-cloud" class="settings-text"></p>
+        <div id="settings-actions" class="ask-actions"></div>
+        <p id="settings-msg" class="settings-text" aria-live="polite"></p>
+        <div class="ask-actions"><button type="button" id="settings-close" class="db-tab">Cerrar</button></div>
+      </div>
     </dialog>
   </body>
 </html>

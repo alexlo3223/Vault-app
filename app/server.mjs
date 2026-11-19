@@ -360,7 +360,7 @@ async function relink(store, before, fromKey, toKey) {
 
 // `storeFor(req, res)` gives the vault to work on: the notes folder on this PC, or the signed-in user's cloud vault.
 // `cloud` (lib/cloud.mjs) is set when the server runs on the web: it signs people in and guards /api with that.
-async function handle(req, res, storeFor, cloud) {
+async function handle(req, res, storeFor, cloud, desktop) {
   const host = req.headers.host ?? '';
   // Blocks DNS-rebinding: a page on another site cannot reach this server under its own host name.
   // On the web the session cookie is what keeps strangers out instead.
@@ -384,6 +384,11 @@ async function handle(req, res, storeFor, cloud) {
   }
 
   if (cloud && /^\/(auth|oauth)\//.test(url.pathname)) return cloud.route(req, res, url, { readJson, readForm, send });
+  // Desktop only: the Ajustes panel talks to the Electron main process (sign-in, sync) through these.
+  if (desktop && url.pathname === '/api/desktop' && req.method === 'GET') return send(res, 200, desktop.state());
+  if (desktop && url.pathname.startsWith('/api/desktop/') && req.method === 'POST') {
+    return send(res, 200, await desktop.run(url.pathname.slice('/api/desktop/'.length)));
+  }
   if (!url.pathname.startsWith('/api/')) throw new HttpError(404, 'no encontrado');
   const store = await storeFor(req, res);
   const { root } = store;
@@ -594,11 +599,11 @@ async function handle(req, res, storeFor, cloud) {
 }
 
 // The request handler, with errors turned into JSON answers. Local: one notes folder. Web: pass `cloud` (lib/cloud.mjs).
-export function createHandler({ root, cloud }) {
+export function createHandler({ root, cloud, desktop }) {
   const local = root && fsStore(root);
   const storeFor = cloud ? cloud.storeFor : async () => local;
   return (req, res) =>
-    handle(req, res, storeFor, cloud).catch((err) => {
+    handle(req, res, storeFor, cloud, desktop).catch((err) => {
       const status = err instanceof HttpError ? err.status : 500;
       if (status === 500) console.error(err);
       if (res.headersSent) return res.end();
@@ -606,8 +611,8 @@ export function createHandler({ root, cloud }) {
     });
 }
 
-export function createApp({ root }) {
-  return http.createServer(createHandler({ root }));
+export function createApp({ root, desktop }) {
+  return http.createServer(createHandler({ root, desktop }));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

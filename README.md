@@ -96,7 +96,7 @@ Claude ──OAuth──► Supabase Auth (Google o contraseña) ◄── web /
 3. Abre la dirección de Vercel en el móvil, entra con Google o con tu contraseña y usa *Añadir a pantalla de inicio*.
 
 ### 3. App de Windows
-Rellena `app/cloud.json` con la misma `url` y `key` y genera el instalador. En la app: *Archivo → Iniciar sesión en la nube…* (se abre el navegador). La primera vez sube toda la carpeta. Si una nota cambia a la vez en el PC y en la nube, se guardan las dos: la de la nube como `Nota (conflicto AAAA-MM-DD HH-MM).md`. Lo borrado en otro dispositivo va a la papelera (`.trash`), no desaparece.
+Rellena `app/cloud.json` con la misma `url` y `key` y genera el instalador. En la app: *Ajustes → Iniciar sesión en la nube…* (se abre el navegador). La primera vez sube toda la carpeta. Si una nota cambia a la vez en el PC y en la nube, se guardan las dos: la de la nube como `Nota (conflicto AAAA-MM-DD HH-MM).md`. Lo borrado en otro dispositivo va a la papelera (`.trash`), no desaparece.
 
 ### 4. Conectar Claude
 - **claude.ai (y la app del móvil)**: *Ajustes → Conectores → Añadir conector personalizado* con `https://<ref>.supabase.co/functions/v1/mcp`. Te pedirá entrar en Vault y pulsar *Permitir*.

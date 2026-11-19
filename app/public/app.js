@@ -2437,6 +2437,52 @@ pagesHead.addEventListener('drop', (e) => {
 $('#new-note').addEventListener('click', () => createPage());
 $('#top-search').addEventListener('click', () => openSwitcher());
 $('#open-search').addEventListener('click', () => openSwitcher());
+
+// ---------- ajustes (desktop only: the cloud sign-in lives here, the menu bar is hidden) ----------
+const settingsDlg = $('#settings');
+const settingsActions = $('#settings-actions');
+const settingsMsg = $('#settings-msg');
+let cloudState = null;
+
+function paintSettings() {
+  const s = cloudState;
+  const text = $('#settings-cloud');
+  settingsActions.replaceChildren();
+  if (!s.cloud) return (text.textContent = 'La nube no está configurada en esta copia de Vault (app/cloud.json).');
+  const btn = (label, action) => {
+    const b = el('button', 'db-tab', label);
+    b.type = 'button';
+    b.onclick = () => runSettings(action);
+    return b;
+  };
+  if (s.user) {
+    text.textContent = `Sesión iniciada como ${s.user}. Última sincronización: ${s.lastSync}.`;
+    settingsActions.append(btn('Sincronizar ahora', 'sync'), btn('Cerrar sesión', 'signout'));
+  } else {
+    text.textContent = 'Sin sesión. Inicia sesión para sincronizar tus notas con la nube.';
+    settingsActions.append(btn('Iniciar sesión en la nube…', 'signin'));
+  }
+}
+
+async function runSettings(action) {
+  settingsMsg.textContent = action === 'signin' ? 'Se abre el navegador. Cuando termines, vuelve a abrir Ajustes.' : '';
+  const res = await fetch(`/api/desktop/${action}`, { method: 'POST' });
+  const body = await res.json();
+  if (!res.ok) return (settingsMsg.textContent = body.error);
+  cloudState = body;
+  paintSettings();
+}
+
+$('#open-settings').addEventListener('click', async () => {
+  settingsMsg.textContent = '';
+  cloudState = await (await fetch('/api/desktop')).json();
+  paintSettings();
+  settingsDlg.showModal();
+});
+$('#settings-close').addEventListener('click', () => settingsDlg.close());
+fetch('/api/desktop').then((r) => {
+  if (r.ok) $('#open-settings').hidden = false; // only the desktop app has the cloud settings
+}).catch(() => {});
 document.querySelectorAll('.kbd:empty').forEach((k) => (k.textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'));
 if (narrow.matches) document.body.classList.add('sidebar-hidden');
 

@@ -60,7 +60,7 @@ async function saveConfig(patch) {
 }
 
 // ---------- cloud sync (Supabase) ----------
-// The project address and public key are in app/cloud.json (see README); empty means the cloud menu is off.
+// The project address and public key are in app/cloud.json (see README); empty means the cloud is off.
 const CLOUD = JSON.parse(await readFile(join(HERE, '..', 'cloud.json'), 'utf8').catch(() => '{}'));
 const cloudOn = Boolean(CLOUD.url && CLOUD.key);
 // The sign-in page's address: Supabase sends Google sign-ins back here, so it is fixed (supabase/config.toml).
@@ -69,7 +69,7 @@ const SYNC_EVERY = 30_000;
 let db = null;
 let syncing = null;
 let lastSync = 'nunca';
-let cloudUser = null; // e-mail of the signed-in account, for the menu
+let cloudUser = null; // e-mail of the signed-in account, for the Ajustes panel
 
 // Supabase keeps (and refreshes) the session in a file of the data folder.
 function cloudClient() {
@@ -91,7 +91,7 @@ async function sync(manual = false) {
   const { data } = await db.auth.getSession();
   cloudUser = data.session?.user.email ?? null;
   if (!data.session) {
-    if (manual) dialog.showMessageBox(win, { message: 'Inicia sesión en la nube primero (Archivo → Iniciar sesión en la nube…).' });
+    if (manual) dialog.showMessageBox(win, { message: 'Inicia sesión en la nube primero (Ajustes → Iniciar sesión en la nube…).' });
     return;
   }
   // One run at a time; a manual sync during a run waits for it.
@@ -99,7 +99,6 @@ async function sync(manual = false) {
     .then((counts) => {
       lastSync = new Date().toLocaleTimeString();
       log('sync', JSON.stringify(counts));
-      Menu.setApplicationMenu(buildMenu());
       // No reload here: it would drop what is being typed. The editor notices a page changed on disk when it saves.
       if (manual) dialog.showMessageBox(win, { message: 'Sincronizado.' });
     })
@@ -121,7 +120,6 @@ function cloudSignIn() {
       const { data } = await db.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token });
       cloudUser = data.session?.user.email ?? null;
       setTimeout(() => server.close(), 5000); // after the browser got its "done" page
-      Menu.setApplicationMenu(buildMenu());
       sync(true);
     },
   });
@@ -134,7 +132,18 @@ function cloudSignIn() {
 async function cloudSignOut() {
   await db.auth.signOut().catch(() => {});
   cloudUser = null;
-  Menu.setApplicationMenu(buildMenu());
+}
+
+// The Ajustes panel in the page reads this and asks for these actions (server.mjs, /api/desktop).
+const desktopState = () => ({ cloud: cloudOn, user: cloudUser, lastSync });
+
+async function desktopAction(action) {
+  if (!cloudOn) throw new Error('la nube no está configurada');
+  if (action === 'signin') cloudSignIn();
+  else if (action === 'signout') await cloudSignOut();
+  else if (action === 'sync') await sync(true);
+  else throw new Error(`acción desconocida: ${action}`);
+  return desktopState();
 }
 
 async function chooseNotesFolder() {
@@ -158,16 +167,6 @@ function buildMenu() {
         { label: 'Abrir carpeta de notas', click: () => shell.openPath(notesDir) },
         { label: 'Cambiar carpeta de notas…', click: () => chooseNotesFolder() },
         { type: 'separator' },
-        ...(!cloudOn
-          ? []
-          : cloudUser
-            ? [
-                { label: `Nube: ${cloudUser} · última sincronización ${lastSync}`, enabled: false },
-                { label: 'Sincronizar ahora', click: () => sync(true) },
-                { label: 'Cerrar sesión de la nube', click: () => cloudSignOut() },
-                { type: 'separator' },
-              ]
-            : [{ label: 'Iniciar sesión en la nube…', click: () => cloudSignIn() }, { type: 'separator' }]),
         { label: 'Salir', role: 'quit' },
       ],
     },
@@ -267,7 +266,7 @@ if (!gotLock) {
       app.quit();
       return;
     }
-    server = createApp({ root: notesDir });
+    server = createApp({ root: notesDir, desktop: { state: desktopState, run: desktopAction } });
     await new Promise((ok, fail) => server.once('error', fail).listen(0, '127.0.0.1', ok));
     log('server listening', `port=${server.address().port}`);
     Menu.setApplicationMenu(buildMenu());
