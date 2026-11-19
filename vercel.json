@@ -6,9 +6,9 @@
   "outputDirectory": "app/public",
   "cleanUrls": false,
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index" },
-    { "source": "/auth/:path*", "destination": "/api/index" },
-    { "source": "/oauth/:path*", "destination": "/api/index" }
+    { "source": "/api/:vercelRoute*", "destination": "/api/index" },
+    { "source": "/auth/:vercelRoute*", "destination": "/api/index" },
+    { "source": "/oauth/:vercelRoute*", "destination": "/api/index" }
   ],
   "headers": [
     {
