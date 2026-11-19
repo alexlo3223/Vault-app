@@ -88,7 +88,7 @@ Claude ──OAuth──► Supabase Auth (Google o contraseña) ◄── web /
    supabase config push
    supabase functions deploy mcp
    ```
-5. En el panel de Supabase: *Authentication → JWT Keys* usa claves asimétricas (ES256 o RS256), que el servidor MCP necesita. Crea tu usuario (*Authentication → Users*, con contraseña). Las altas están cerradas: solo entra tu cuenta.
+5. En el panel de Supabase: *Authentication → JWT Keys* usa claves asimétricas (ES256 o RS256), que el servidor MCP necesita. Las altas están abiertas: cualquiera puede crear su cuenta en la página de entrada (*Crear cuenta* o *Entrar con Google*), y cada cuenta solo ve sus notas. Para cerrarlas, pon `enable_signup = false` en `supabase/config.toml` (o desactiva *Allow new users to sign up* en el panel).
 
 ### 2. Web y móvil (Vercel)
 1. Importa el repositorio en https://vercel.com (sin *framework*; `vercel.json` ya lo configura).

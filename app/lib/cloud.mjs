@@ -45,7 +45,7 @@ export function createCloud({ url = process.env.SUPABASE_URL, key = process.env.
       body: body && JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new HttpError(res.status === 400 || res.status === 401 ? 401 : 502, data.msg || data.error_description || data.message || 'no se pudo iniciar sesión');
+    if (!res.ok) throw new HttpError([400, 401, 422].includes(res.status) ? 401 : 502, data.msg || data.error_description || data.message || 'no se pudo iniciar sesión');
     return data;
   };
   const keep = (res, s) => {
@@ -96,6 +96,15 @@ export function createCloud({ url = process.env.SUPABASE_URL, key = process.env.
         const body = await readJson(req);
         if (typeof body.email !== 'string' || typeof body.password !== 'string') throw new HttpError(400, 'faltan el email o la contraseña');
         keep(res, await auth('/token?grant_type=password', { body: { email: body.email, password: body.password } }));
+        return send(res, 200, { ok: true });
+      }
+      // New account. With "Confirm email" on in Supabase there is no session yet: the person confirms by e-mail first.
+      case 'POST /auth/signup': {
+        const body = await readJson(req);
+        if (typeof body.email !== 'string' || typeof body.password !== 'string') throw new HttpError(400, 'faltan el email o la contraseña');
+        const data = await auth('/signup', { body: { email: body.email, password: body.password } });
+        if (!data.access_token) return send(res, 200, { confirm: true });
+        keep(res, data);
         return send(res, 200, { ok: true });
       }
       // Google, with PKCE: the code that comes back is useless without the secret kept in this browser's cookie.

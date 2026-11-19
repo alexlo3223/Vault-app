@@ -15,11 +15,15 @@ if (new URLSearchParams(location.search).has('done')) {
 document.getElementById('login').addEventListener('submit', async (e) => {
   e.preventDefault();
   const form = new FormData(e.target);
-  const res = await fetch('/auth/login', {
+  const signup = e.submitter?.value === 'signup';
+  const res = await fetch(signup ? '/auth/signup' : '/auth/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email: form.get('email'), password: form.get('password') }),
   }).catch(() => null);
+  const data = await res?.json().catch(() => ({}));
+  if (res?.ok && data.confirm) return fail('Cuenta creada. Abre el enlace que te hemos enviado por email y luego entra.');
   if (res?.ok) return location.assign(next.startsWith('/') && !next.startsWith('//') ? next : '/');
+  if (signup) return fail(res?.status === 401 ? `No se pudo crear la cuenta: ${data?.error ?? 'revisa el email y la contraseña'}.` : 'No se pudo conectar. Inténtalo otra vez.');
   fail(res?.status === 401 ? 'Email o contraseña incorrectos.' : 'No se pudo conectar. Inténtalo otra vez.');
 });

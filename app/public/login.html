@@ -13,13 +13,14 @@
   <body>
     <main class="card">
       <h1>Vault</h1>
-      <p class="muted">Entra para ver tus notas.</p>
+      <p class="muted">Entra para ver tus notas, o crea tu cuenta.</p>
       <a id="google" class="btn primary" href="/auth/google">Entrar con Google</a>
       <div class="or muted">o con tu email</div>
       <form id="login">
         <label>Email <input name="email" type="email" autocomplete="username" required /></label>
-        <label>Contraseña <input name="password" type="password" autocomplete="current-password" required /></label>
-        <button class="btn" type="submit">Entrar</button>
+        <label>Contraseña <input name="password" type="password" autocomplete="current-password" minlength="6" required /></label>
+        <button class="btn" type="submit" value="login">Entrar</button>
+        <button class="btn" type="submit" value="signup">Crear cuenta</button>
         <p id="error" class="error" role="alert" hidden></p>
       </form>
     </main>

@@ -5,12 +5,12 @@ project_id = "vault"
 [auth]
 site_url = "https://vault-app-ten.vercel.app/"
 # The web app, the desktop app's sign-in return and the local dev server.
-additional_redirect_urls = ["https://vault-app-ten.vercel.app/", "http://127.0.0.1:47321/auth/callback", "http://localhost:3000/auth/callback"]
-# Only you: create your account first, then keep sign-ups closed (Google sign-in of a new address is refused too).
-enable_signup = false
+additional_redirect_urls = ["https://vault-app-ten.vercel.app/", "https://vault-app-ten.vercel.app/auth/callback", "http://127.0.0.1:47321/auth/callback", "http://localhost:3000/auth/callback"]
+# Anyone can make an account (Google or e-mail); each account only sees its own notes (row level security).
+enable_signup = true
 
 [auth.email]
-enable_signup = false
+enable_signup = true
 
 [auth.external.google]
 enabled = true
